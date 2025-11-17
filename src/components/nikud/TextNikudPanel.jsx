@@ -20,12 +20,17 @@ export default function TextNikudPanel({ config }) {
     }
 
     setIsProcessing(true);
+    console.log('Starting nikud processing...', { inputText, config });
+    
     try {
+      console.log('Calling processNikud function...');
       const result = await base44.functions.invoke('processNikud', {
         text: inputText,
         lm_weight: config.lmWeight,
         confidence: config.confidence
       });
+
+      console.log('Function result:', result);
 
       if (result.data.success) {
         setOutputText(result.data.text);
@@ -46,8 +51,8 @@ export default function TextNikudPanel({ config }) {
         throw new Error(result.data.error || "Processing failed");
       }
     } catch (error) {
+      console.error('Error in processNikud:', error);
       toast.error("Error: " + error.message);
-      console.error(error);
     } finally {
       setIsProcessing(false);
     }
