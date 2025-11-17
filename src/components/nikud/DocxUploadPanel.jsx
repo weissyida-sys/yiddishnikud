@@ -5,12 +5,13 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Upload, FileText, Download, Loader2, CheckCircle2, X } from "lucide-react";
 import { toast } from "sonner";
+import { base44 } from "@/api/base44Client";
 
 export default function DocxUploadPanel({ config }) {
   const [selectedFile, setSelectedFile] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [processedFile, setProcessedFile] = useState(null);
+  const [processedFileBlob, setProcessedFileBlob] = useState(null);
   const fileInputRef = useRef(null);
 
   const handleFileSelect = (e) => {
@@ -21,7 +22,7 @@ export default function DocxUploadPanel({ config }) {
         return;
       }
       setSelectedFile(file);
-      setProcessedFile(null);
+      setProcessedFileBlob(null);
       toast.success("File uploaded: " + file.name);
     }
   };
@@ -36,61 +37,55 @@ export default function DocxUploadPanel({ config }) {
     setProgress(0);
 
     try {
-      // TODO: Replace with actual backend function call when enabled
-      // Example:
-      // const formData = new FormData();
-      // formData.append('file', selectedFile);
-      // formData.append('lm_weight', config.lmWeight);
-      // formData.append('confidence', config.confidence);
-      // const result = await base44.functions.processDocx(formData);
+      const formData = new FormData();
+      formData.append('file', selectedFile);
+      formData.append('lm_weight', config.lmWeight.toString());
+      formData.append('confidence', config.confidence.toString());
+
+      // Simulate progress
+      const progressInterval = setInterval(() => {
+        setProgress(p => Math.min(p + 10, 90));
+      }, 300);
+
+      const result = await base44.functions.invoke('processDocx', formData);
       
-      // Simulate processing with progress
-      for (let i = 0; i <= 100; i += 10) {
-        await new Promise(resolve => setTimeout(resolve, 200));
-        setProgress(i);
-      }
+      clearInterval(progressInterval);
+      setProgress(100);
 
-      // Mock processed file
-      setProcessedFile({
-        name: selectedFile.name.replace('.docx', '.nikud.docx'),
-        size: selectedFile.size,
-        timestamp: new Date().toISOString(),
-        blob: null // This would be the actual file blob from your API
-      });
-
+      // The result.data should be a Blob
+      setProcessedFileBlob(result.data);
       toast.success("File processed successfully!");
+      
     } catch (error) {
       toast.error("Error: " + error.message);
+      console.error(error);
     } finally {
       setIsProcessing(false);
-      setProgress(0);
+      setTimeout(() => setProgress(0), 1000);
     }
   };
 
   const downloadFile = () => {
-    if (!processedFile) {
+    if (!processedFileBlob) {
       toast.error("No file to download");
       return;
     }
 
-    // TODO: Replace with actual file download from backend
-    // For now, create a mock download
-    toast.info("Download functionality will be connected when backend is enabled");
+    const url = URL.createObjectURL(new Blob([processedFileBlob]));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = selectedFile.name.replace('.docx', '.nikud.docx');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
     
-    // When backend is ready, use this:
-    // const url = URL.createObjectURL(processedFile.blob);
-    // const link = document.createElement('a');
-    // link.href = url;
-    // link.download = processedFile.name;
-    // document.body.appendChild(link);
-    // link.click();
-    // document.body.removeChild(link);
-    // URL.revokeObjectURL(url);
+    toast.success("Downloaded!");
   };
 
   const clearFile = () => {
     setSelectedFile(null);
-    setProcessedFile(null);
+    setProcessedFileBlob(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
@@ -156,7 +151,7 @@ export default function DocxUploadPanel({ config }) {
             </Card>
           )}
 
-          {isProcessing && (
+          {isProcessing && progress > 0 && (
             <div className="space-y-3">
               <div className="flex items-center justify-between text-sm">
                 <span className="text-gray-600">Processing...</span>
@@ -166,7 +161,7 @@ export default function DocxUploadPanel({ config }) {
             </div>
           )}
 
-          {processedFile && (
+          {processedFileBlob && (
             <Card className="bg-gradient-to-r from-green-50 to-emerald-50 border-green-200">
               <CardContent className="pt-6">
                 <div className="flex items-center gap-3 mb-4">
@@ -176,7 +171,7 @@ export default function DocxUploadPanel({ config }) {
                       File Ready to Download!
                     </p>
                     <p className="text-sm text-green-700">
-                      {processedFile.name}
+                      {selectedFile.name.replace('.docx', '.nikud.docx')}
                     </p>
                   </div>
                 </div>

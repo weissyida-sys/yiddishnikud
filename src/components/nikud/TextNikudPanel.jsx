@@ -5,6 +5,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, Copy, CheckCircle2, Sparkles, Download } from "lucide-react";
 import { toast } from "sonner";
+import { base44 } from "@/api/base44Client";
 
 export default function TextNikudPanel({ config }) {
   const [inputText, setInputText] = useState("");
@@ -20,25 +21,33 @@ export default function TextNikudPanel({ config }) {
 
     setIsProcessing(true);
     try {
-      // TODO: Replace with actual backend function call when enabled
-      // Example:
-      // const result = await base44.functions.processNikud({
-      //   text: inputText,
-      //   lm_weight: config.lmWeight,
-      //   confidence: config.confidence
-      // });
-      
-      // For now, simulate processing
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      // Mock response - in reality this would call your Python API
-      const mockOutput = inputText + " [Nikud added]";
-      setOutputText(mockOutput);
-      setCoverage({ percent: 87.5, total: 120, withNikud: 105 });
-      
-      toast.success("Nikud added successfully!");
+      const result = await base44.functions.invoke('processNikud', {
+        text: inputText,
+        lm_weight: config.lmWeight,
+        confidence: config.confidence
+      });
+
+      if (result.data.success) {
+        setOutputText(result.data.text);
+        
+        // Calculate basic coverage from audit data if available
+        if (result.data.audit && result.data.audit.length > 0) {
+          const total = result.data.audit.length;
+          const withNikud = result.data.audit.filter(a => a.chosen !== a.orig).length;
+          setCoverage({ 
+            percent: ((withNikud / total) * 100).toFixed(1), 
+            total, 
+            withNikud 
+          });
+        }
+        
+        toast.success("Nikud added successfully!");
+      } else {
+        throw new Error(result.data.error || "Processing failed");
+      }
     } catch (error) {
       toast.error("Error: " + error.message);
+      console.error(error);
     } finally {
       setIsProcessing(false);
     }
