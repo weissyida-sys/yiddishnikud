@@ -14,13 +14,20 @@ export default function CoverageStats({ config }) {
 
   const analyzeCoverage = async () => {
     if (!testText.trim()) {
-      toast.error("ביטע לייג אַרײַן טעקסט צו אַנאַליזירן");
+      toast.error("Please enter text to analyze");
       return;
     }
 
     setIsAnalyzing(true);
     try {
       // TODO: Replace with actual backend function call
+      // Example:
+      // const result = await base44.functions.analyzeCoverage({
+      //   text: testText,
+      //   lm_weight: config.lmWeight,
+      //   confidence: config.confidence
+      // });
+      
       await new Promise(resolve => setTimeout(resolve, 1000));
 
       // Mock statistics
@@ -29,10 +36,10 @@ export default function CoverageStats({ config }) {
         withNikud: 128,
         percentage: 85.3,
         byCategory: {
-          "פֿונקציע־ווערטער": { total: 45, processed: 43, percent: 95.6 },
-          "נאָמען": { total: 35, processed: 28, percent: 80.0 },
-          "ווערבן": { total: 40, processed: 32, percent: 80.0 },
-          "אַדיעקטיוון": { total: 30, processed: 25, percent: 83.3 }
+          "Function Words": { total: 45, processed: 43, percent: 95.6 },
+          "Nouns": { total: 35, processed: 28, percent: 80.0 },
+          "Verbs": { total: 40, processed: 32, percent: 80.0 },
+          "Adjectives": { total: 30, processed: 25, percent: 83.3 }
         },
         confidence: {
           high: 95,    // >0.8
@@ -42,9 +49,9 @@ export default function CoverageStats({ config }) {
       };
 
       setStats(mockStats);
-      toast.success("אַנאַליז פֿאַרענדיקט!");
+      toast.success("Analysis complete!");
     } catch (error) {
-      toast.error("טעות: " + error.message);
+      toast.error("Error: " + error.message);
     } finally {
       setIsAnalyzing(false);
     }
@@ -57,34 +64,34 @@ export default function CoverageStats({ config }) {
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-2xl">
             <BarChart3 className="w-6 h-6 text-indigo-600" />
-            כּיסוי אַנאַליז
+            Coverage Analysis
           </CardTitle>
           <p className="text-sm text-gray-600 mt-2">
-            טעסט די גענויִקייט און כּיסוי פֿון דײַן ניקוד סיסטעם
+            Test the accuracy and coverage of your nikud system
           </p>
         </CardHeader>
         <CardContent className="space-y-4">
           <Textarea
             value={testText}
             onChange={(e) => setTestText(e.target.value)}
-            placeholder="לייג אַרײַן אַ לאַנגן טעקסט צו טעסטן די כּיסוי..."
+            placeholder="Enter a long text to test coverage..."
             className="min-h-[150px] text-lg font-serif border-2 border-indigo-200"
             dir="rtl"
           />
           <Button
-            onClick={analyzecoverage}
+            onClick={analyzeCoverage}
             disabled={isAnalyzing || !testText.trim()}
             className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-semibold py-6 text-lg"
           >
             {isAnalyzing ? (
               <>
-                <Loader2 className="w-5 h-5 ml-2 animate-spin" />
-                אַנאַליזירן...
+                <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                Analyzing...
               </>
             ) : (
               <>
-                <BarChart3 className="w-5 h-5 ml-2" />
-                אַנאַליזירן כּיסוי
+                <BarChart3 className="w-5 h-5 mr-2" />
+                Analyze Coverage
               </>
             )}
           </Button>
@@ -101,11 +108,11 @@ export default function CoverageStats({ config }) {
                 <div className="flex items-center justify-between mb-2">
                   <FileText className="w-8 h-8 opacity-80" />
                   <Badge className="bg-white/20 text-white border-0">
-                    גאַנץ
+                    Total
                   </Badge>
                 </div>
                 <div className="text-4xl font-bold mb-1">{stats.totalWords}</div>
-                <div className="text-sm opacity-90">גאַנצע ווערטער</div>
+                <div className="text-sm opacity-90">Total Words</div>
               </CardContent>
             </Card>
 
@@ -114,11 +121,11 @@ export default function CoverageStats({ config }) {
                 <div className="flex items-center justify-between mb-2">
                   <CheckCircle2 className="w-8 h-8 opacity-80" />
                   <Badge className="bg-white/20 text-white border-0">
-                    מיט ניקוד
+                    With Nikud
                   </Badge>
                 </div>
                 <div className="text-4xl font-bold mb-1">{stats.withNikud}</div>
-                <div className="text-sm opacity-90">ווערטער פּראָצעסירט</div>
+                <div className="text-sm opacity-90">Words Processed</div>
               </CardContent>
             </Card>
 
@@ -127,11 +134,11 @@ export default function CoverageStats({ config }) {
                 <div className="flex items-center justify-between mb-2">
                   <TrendingUp className="w-8 h-8 opacity-80" />
                   <Badge className="bg-white/20 text-white border-0">
-                    כּיסוי
+                    Coverage
                   </Badge>
                 </div>
                 <div className="text-4xl font-bold mb-1">{stats.percentage}%</div>
-                <div className="text-sm opacity-90">כּיסוי פּראָצענט</div>
+                <div className="text-sm opacity-90">Coverage Percentage</div>
               </CardContent>
             </Card>
           </div>
@@ -139,7 +146,7 @@ export default function CoverageStats({ config }) {
           {/* Category Breakdown */}
           <Card className="bg-white/90 backdrop-blur-sm shadow-xl border-2 border-purple-100">
             <CardHeader>
-              <CardTitle className="text-xl">כּיסוי לויט קאַטעגאָריע</CardTitle>
+              <CardTitle className="text-xl">Coverage by Category</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               {Object.entries(stats.byCategory).map(([category, data]) => (
@@ -168,15 +175,15 @@ export default function CoverageStats({ config }) {
           {/* Confidence Distribution */}
           <Card className="bg-white/90 backdrop-blur-sm shadow-xl border-2 border-indigo-100">
             <CardHeader>
-              <CardTitle className="text-xl">פֿאַרטיילונג פֿון זיכערקייט</CardTitle>
+              <CardTitle className="text-xl">Confidence Distribution</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
                 <div className="flex items-center gap-4">
                   <div className="flex-1">
                     <div className="flex justify-between mb-2">
-                      <span className="text-sm font-medium">הויך ({">"} 0.8)</span>
-                      <span className="text-sm text-gray-600">{stats.confidence.high} ווערטער</span>
+                      <span className="text-sm font-medium">High ({">"}0.8)</span>
+                      <span className="text-sm text-gray-600">{stats.confidence.high} words</span>
                     </div>
                     <Progress 
                       value={(stats.confidence.high / stats.withNikud) * 100} 
@@ -188,8 +195,8 @@ export default function CoverageStats({ config }) {
                 <div className="flex items-center gap-4">
                   <div className="flex-1">
                     <div className="flex justify-between mb-2">
-                      <span className="text-sm font-medium">מיטל (0.5-0.8)</span>
-                      <span className="text-sm text-gray-600">{stats.confidence.medium} ווערטער</span>
+                      <span className="text-sm font-medium">Medium (0.5-0.8)</span>
+                      <span className="text-sm text-gray-600">{stats.confidence.medium} words</span>
                     </div>
                     <Progress 
                       value={(stats.confidence.medium / stats.withNikud) * 100}
@@ -201,8 +208,8 @@ export default function CoverageStats({ config }) {
                 <div className="flex items-center gap-4">
                   <div className="flex-1">
                     <div className="flex justify-between mb-2">
-                      <span className="text-sm font-medium">נידעריק ({"<"} 0.5)</span>
-                      <span className="text-sm text-gray-600">{stats.confidence.low} ווערטער</span>
+                      <span className="text-sm font-medium">Low ({"<"}0.5)</span>
+                      <span className="text-sm text-gray-600">{stats.confidence.low} words</span>
                     </div>
                     <Progress 
                       value={(stats.confidence.low / stats.withNikud) * 100}
@@ -218,18 +225,18 @@ export default function CoverageStats({ config }) {
           <Card className="bg-gradient-to-r from-yellow-50 to-amber-50 border-2 border-yellow-200">
             <CardHeader>
               <CardTitle className="text-lg text-yellow-900">
-                💡 רעקאָמענדאַציעס
+                💡 Recommendations
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-2 text-sm text-yellow-900">
               {stats.percentage < 80 && (
-                <p>• די כּיסוי איז נידעריק. פּרוּוו פֿאַרקלענערן די "זיכערקייט־שוועל" אין קאָנפֿיגוראַציע.</p>
+                <p>• Coverage is low. Try decreasing the "Confidence Threshold" in Configuration.</p>
               )}
               {stats.confidence.low > 10 && (
-                <p>• פֿיל ווערטער האָבן נידעריקע זיכערקייט. פֿאַרגרעסער דײַן לעקסיקאָן אָדער טריינירונג־דאַטן.</p>
+                <p>• Many words have low confidence. Expand your lexicon or training data.</p>
               )}
               {stats.percentage >= 90 && (
-                <p>• ✓ זייער גוטע כּיסוי! דער סיסטעם אַרבעט אויסגעצייכנט.</p>
+                <p>• ✓ Excellent coverage! Your system is performing very well.</p>
               )}
             </CardContent>
           </Card>

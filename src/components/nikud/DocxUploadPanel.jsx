@@ -17,18 +17,18 @@ export default function DocxUploadPanel({ config }) {
     const file = e.target.files[0];
     if (file) {
       if (!file.name.endsWith('.docx')) {
-        toast.error("ביטע קלײַב אַ .docx טעקע");
+        toast.error("Please select a .docx file");
         return;
       }
       setSelectedFile(file);
       setProcessedFile(null);
-      toast.success("טעקע אַרויפֿגעלאָדעט: " + file.name);
+      toast.success("File uploaded: " + file.name);
     }
   };
 
   const processDocx = async () => {
     if (!selectedFile) {
-      toast.error("ביטע קלײַב אַ טעקע");
+      toast.error("Please select a file");
       return;
     }
 
@@ -37,6 +37,13 @@ export default function DocxUploadPanel({ config }) {
 
     try {
       // TODO: Replace with actual backend function call when enabled
+      // Example:
+      // const formData = new FormData();
+      // formData.append('file', selectedFile);
+      // formData.append('lm_weight', config.lmWeight);
+      // formData.append('confidence', config.confidence);
+      // const result = await base44.functions.processDocx(formData);
+      
       // Simulate processing with progress
       for (let i = 0; i <= 100; i += 10) {
         await new Promise(resolve => setTimeout(resolve, 200));
@@ -47,12 +54,13 @@ export default function DocxUploadPanel({ config }) {
       setProcessedFile({
         name: selectedFile.name.replace('.docx', '.nikud.docx'),
         size: selectedFile.size,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        blob: null // This would be the actual file blob from your API
       });
 
-      toast.success("טעקע פּראָצעסירט!");
+      toast.success("File processed successfully!");
     } catch (error) {
-      toast.error("טעות: " + error.message);
+      toast.error("Error: " + error.message);
     } finally {
       setIsProcessing(false);
       setProgress(0);
@@ -60,8 +68,24 @@ export default function DocxUploadPanel({ config }) {
   };
 
   const downloadFile = () => {
-    // TODO: Implement actual download when backend is connected
-    toast.info("אַראָפּלאָדן פֿונקציע וועט זײַן פֿאַרבונדן שפּעטער");
+    if (!processedFile) {
+      toast.error("No file to download");
+      return;
+    }
+
+    // TODO: Replace with actual file download from backend
+    // For now, create a mock download
+    toast.info("Download functionality will be connected when backend is enabled");
+    
+    // When backend is ready, use this:
+    // const url = URL.createObjectURL(processedFile.blob);
+    // const link = document.createElement('a');
+    // link.href = url;
+    // link.download = processedFile.name;
+    // document.body.appendChild(link);
+    // link.click();
+    // document.body.removeChild(link);
+    // URL.revokeObjectURL(url);
   };
 
   const clearFile = () => {
@@ -78,10 +102,10 @@ export default function DocxUploadPanel({ config }) {
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-2xl">
             <FileText className="w-6 h-6 text-indigo-600" />
-            Word טעקע פּראָצעסירן
+            Process Word Document
           </CardTitle>
           <p className="text-sm text-gray-600 mt-2">
-            לאָד אַרויף אַ .docx טעקע און באַקום צוריק די זעלבע טעקע מיט צוגעלייגטן ניקוד
+            Upload a .docx file and receive it back with nikud automatically added
           </p>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -92,10 +116,10 @@ export default function DocxUploadPanel({ config }) {
           >
             <Upload className="w-16 h-16 text-indigo-400 mx-auto mb-4" />
             <h3 className="text-lg font-semibold mb-2">
-              {selectedFile ? selectedFile.name : "קליק צו אַרויפֿלאָדן טעקע"}
+              {selectedFile ? selectedFile.name : "Click to Upload File"}
             </h3>
             <p className="text-sm text-gray-500">
-              .docx פֿאָרמאַט בלויז
+              .docx format only
             </p>
             <input
               ref={fileInputRef}
@@ -135,7 +159,7 @@ export default function DocxUploadPanel({ config }) {
           {isProcessing && (
             <div className="space-y-3">
               <div className="flex items-center justify-between text-sm">
-                <span className="text-gray-600">פּראָצעסירן...</span>
+                <span className="text-gray-600">Processing...</span>
                 <span className="font-medium text-indigo-600">{progress}%</span>
               </div>
               <Progress value={progress} className="h-3" />
@@ -149,7 +173,7 @@ export default function DocxUploadPanel({ config }) {
                   <CheckCircle2 className="w-8 h-8 text-green-600" />
                   <div>
                     <p className="font-semibold text-green-900">
-                      טעקע גרייט צו אַראָפּלאָדן!
+                      File Ready to Download!
                     </p>
                     <p className="text-sm text-green-700">
                       {processedFile.name}
@@ -160,8 +184,8 @@ export default function DocxUploadPanel({ config }) {
                   onClick={downloadFile}
                   className="w-full bg-green-600 hover:bg-green-700 text-white"
                 >
-                  <Download className="w-5 h-5 ml-2" />
-                  אַראָפּלאָדן טעקע
+                  <Download className="w-5 h-5 mr-2" />
+                  Download File with Nikud
                 </Button>
               </CardContent>
             </Card>
@@ -175,13 +199,13 @@ export default function DocxUploadPanel({ config }) {
             >
               {isProcessing ? (
                 <>
-                  <Loader2 className="w-5 h-5 ml-2 animate-spin" />
-                  אַרבעטן...
+                  <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                  Processing...
                 </>
               ) : (
                 <>
-                  <Upload className="w-5 h-5 ml-2" />
-                  פּראָצעסירן Word טעקע
+                  <Upload className="w-5 h-5 mr-2" />
+                  Process Word Document
                 </>
               )}
             </Button>
@@ -189,12 +213,12 @@ export default function DocxUploadPanel({ config }) {
 
           {/* Info */}
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-900">
-            <p className="font-medium mb-2">💡 ווי עס אַרבעט:</p>
+            <p className="font-medium mb-2">💡 How it works:</p>
             <ol className="list-decimal list-inside space-y-1 text-blue-800">
-              <li>לאָד אַרויף דײַן Word (.docx) טעקע</li>
-              <li>דער סיסטעם וועט פּראָצעסירן יעדער פּאַראַגראַף</li>
-              <li>ניקוד וועט ווערן צוגעלייגט אויטאָמאַטיש</li>
-              <li>לאָד אַראָפּ די נײַע טעקע מיט ניקוד</li>
+              <li>Upload your Word (.docx) file</li>
+              <li>The system will process each paragraph</li>
+              <li>Nikud will be added automatically</li>
+              <li>Download the new file with nikud</li>
             </ol>
           </div>
         </CardContent>

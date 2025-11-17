@@ -1,7 +1,6 @@
 import React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
 import { Button } from "@/components/ui/button";
@@ -20,12 +19,13 @@ export default function ConfigurationPanel({ config, setConfig }) {
       noPartialNikud: true,
       forbidFinalR: true
     });
-    toast.success("קאָנפֿיגוראַציע צוריקגעשטעלט");
+    toast.success("Configuration reset to defaults");
   };
 
   const saveConfig = () => {
     // TODO: Save to backend or localStorage
-    toast.success("קאָנפֿיגוראַציע געראַטעווט");
+    localStorage.setItem('nikudConfig', JSON.stringify(config));
+    toast.success("Configuration saved");
   };
 
   return (
@@ -34,10 +34,10 @@ export default function ConfigurationPanel({ config, setConfig }) {
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-2xl">
             <Settings className="w-6 h-6 text-indigo-600" />
-            קאָנפֿיגוראַציע
+            Configuration
           </CardTitle>
           <p className="text-sm text-gray-600 mt-2">
-            פֿאַרשטעל די פּאַראַמעטערס פֿאַר העכערע גענויִקייט
+            Adjust parameters for higher accuracy
           </p>
         </CardHeader>
         <CardContent className="space-y-8">
@@ -45,7 +45,7 @@ export default function ConfigurationPanel({ config, setConfig }) {
           <div className="space-y-3">
             <div className="flex justify-between items-center">
               <Label className="text-base font-semibold">
-                שפּראַך־מאָדעל וואָג (LM Weight)
+                Language Model Weight
               </Label>
               <span className="text-sm font-mono bg-indigo-100 px-3 py-1 rounded">
                 {config.lmWeight.toFixed(2)}
@@ -60,7 +60,7 @@ export default function ConfigurationPanel({ config, setConfig }) {
               className="w-full"
             />
             <p className="text-xs text-gray-600">
-              ווי פֿיל געוויכט צו געבן דעם שפּראַך־מאָדעל אין באַשלוסן. העכער = מער קאָנטעקסט־אַוואַרנעס
+              How much weight to give the language model in decisions. Higher = more context awareness
             </p>
           </div>
 
@@ -68,7 +68,7 @@ export default function ConfigurationPanel({ config, setConfig }) {
           <div className="space-y-3">
             <div className="flex justify-between items-center">
               <Label className="text-base font-semibold">
-                זיכערקייט־שוועל (Confidence)
+                Confidence Threshold
               </Label>
               <span className="text-sm font-mono bg-purple-100 px-3 py-1 rounded">
                 {config.confidence.toFixed(2)}
@@ -83,7 +83,7 @@ export default function ConfigurationPanel({ config, setConfig }) {
               className="w-full"
             />
             <p className="text-xs text-gray-600">
-              מינימום זיכערקייט צו צולייגן ניקוד. העכער = קאָנסערוואַטיווער (ווייניקער ניקוד, אָבער מער גענוי)
+              Minimum confidence to add nikud. Higher = more conservative (less nikud, but more accurate)
             </p>
           </div>
 
@@ -92,10 +92,10 @@ export default function ConfigurationPanel({ config, setConfig }) {
             <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
               <div className="space-y-1">
                 <Label className="text-base font-medium">
-                  פֿאַרמײַדן חלקיש ניקוד
+                  Prevent Partial Nikud
                 </Label>
                 <p className="text-xs text-gray-600">
-                  נישט צולייגן ניקוד אויף בלויז עטלעכע אותיות אין אַ וואָרט
+                  Don't add nikud to only some letters in a word
                 </p>
               </div>
               <Switch
@@ -107,10 +107,10 @@ export default function ConfigurationPanel({ config, setConfig }) {
             <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
               <div className="space-y-1">
                 <Label className="text-base font-medium">
-                  פֿאַרבאָט ניקוד אויף סוף־ר
+                  Forbid Nikud on Final R
                 </Label>
                 <p className="text-xs text-gray-600">
-                  נישט צולייגן ניקוד אונטער דעם סוף ר אין ־ער סוף
+                  Don't add nikud under the final ר in ־ער suffix
                 </p>
               </div>
               <Switch
@@ -124,7 +124,7 @@ export default function ConfigurationPanel({ config, setConfig }) {
           <Card className="bg-gradient-to-r from-indigo-50 to-purple-50 border-indigo-200">
             <CardHeader>
               <CardTitle className="text-sm font-semibold text-indigo-900">
-                פֿאַרשטעלטע פּאַראַמעטערס
+                Current Parameters
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -159,25 +159,25 @@ export default function ConfigurationPanel({ config, setConfig }) {
               onClick={saveConfig}
               className="flex-1 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700"
             >
-              <Save className="w-4 h-4 ml-2" />
-              ראַטעווען קאָנפֿיגוראַציע
+              <Save className="w-4 h-4 mr-2" />
+              Save Configuration
             </Button>
             <Button
               onClick={resetToDefaults}
               variant="outline"
               className="border-2"
             >
-              <RotateCcw className="w-4 h-4 ml-2" />
-              צוריקשטעלן
+              <RotateCcw className="w-4 h-4 mr-2" />
+              Reset
             </Button>
           </div>
 
           {/* Help Text */}
           <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-sm text-yellow-900">
-            <p className="font-medium mb-2">💡 טיפּ:</p>
+            <p className="font-medium mb-2">💡 Tip:</p>
             <p>
-              אויב די כּיסוי איז צו נידעריק (ווייניק ניקוד), פּרוּוו פֿאַרקלענערן די "זיכערקייט־שוועל".
-              אויב עס זײַנען צו פֿיל טעותים, פֿאַרגרעסער די "זיכערקייט־שוועל" פֿאַר מער גענויִקייט.
+              If coverage is too low (not enough nikud), try decreasing the "Confidence Threshold".
+              If there are too many errors, increase the "Confidence Threshold" for more accuracy.
             </p>
           </div>
         </CardContent>
