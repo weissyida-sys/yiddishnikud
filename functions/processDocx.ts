@@ -13,8 +13,6 @@ Deno.serve(async (req) => {
 
         const formData = await req.formData();
         const file = formData.get('file');
-        const lm_weight = formData.get('lm_weight') || '0.52';
-        const confidence = formData.get('confidence') || '0.50';
 
         if (!file) {
             return Response.json({ error: 'File is required' }, { status: 400 });
@@ -23,8 +21,6 @@ Deno.serve(async (req) => {
         // Forward to Flask server
         const flaskFormData = new FormData();
         flaskFormData.append('file', file);
-        flaskFormData.append('lm_weight', lm_weight);
-        flaskFormData.append('confidence', confidence);
 
         const response = await fetch(`${FLASK_SERVER_URL}/nikud-docx`, {
             method: 'POST',

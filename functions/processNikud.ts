@@ -12,7 +12,7 @@ Deno.serve(async (req) => {
             return Response.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const { text, lm_weight, confidence } = await req.json();
+        const { text } = await req.json();
 
         if (!text || typeof text !== 'string') {
             return Response.json({ error: 'Text is required' }, { status: 400 });
@@ -25,9 +25,7 @@ Deno.serve(async (req) => {
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-                paragraphs: [text],
-                lm_weight: lm_weight || 0.52,
-                confidence: confidence || 0.50
+                paragraphs: [text]
             })
         });
 

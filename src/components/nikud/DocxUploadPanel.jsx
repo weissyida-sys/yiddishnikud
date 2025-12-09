@@ -38,9 +38,7 @@ export default function DocxUploadPanel({ config }) {
 
     try {
       const formData = new FormData();
-      formData.append('file', selectedFile);
-      formData.append('lm_weight', config.lmWeight.toString());
-      formData.append('confidence', config.confidence.toString());
+          formData.append('file', selectedFile);
 
       // Simulate progress
       const progressInterval = setInterval(() => {

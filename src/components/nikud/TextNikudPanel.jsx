@@ -25,9 +25,7 @@ export default function TextNikudPanel({ config }) {
     try {
       console.log('Calling processNikud function...');
       const result = await base44.functions.invoke('processNikud', {
-        text: inputText,
-        lm_weight: config.lmWeight,
-        confidence: config.confidence
+        text: inputText
       });
 
       console.log('Function result:', result);
