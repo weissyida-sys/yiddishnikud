@@ -1,7 +1,11 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
+import OpenAI from 'npm:openai@4.73.1';
 
-// Your Flask server URL - change this to your deployed URL or keep as localhost for development
-const FLASK_SERVER_URL = Deno.env.get("FLASK_SERVER_URL") || "http://localhost:5055";
+const openai = new OpenAI({
+    apiKey: Deno.env.get("OPENAI_API_KEY"),
+});
+
+const FINE_TUNED_MODEL = "ft:gpt-4o-mini-2024-07-18:personal::CkdDGC5F";
 
 Deno.serve(async (req) => {
     try {
@@ -18,27 +22,23 @@ Deno.serve(async (req) => {
             return Response.json({ error: 'Text is required' }, { status: 400 });
         }
 
-        // Call your Flask /nikud endpoint
-        const response = await fetch(`${FLASK_SERVER_URL}/nikud`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                paragraphs: [text]
-            })
+        // Call OpenAI fine-tuned model directly
+        const response = await openai.chat.completions.create({
+            model: FINE_TUNED_MODEL,
+            messages: [
+                {
+                    role: "user",
+                    content: text
+                }
+            ],
+            temperature: 0.1,
         });
 
-        if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(`Flask server error: ${errorText}`);
-        }
-
-        const data = await response.json();
+        const nikudText = response.choices[0].message.content;
 
         return Response.json({
-            text: data.paragraphs?.[0] || text,
-            audit: data.audit?.[0] || [],
+            text: nikudText,
+            audit: [],
             success: true
         });
 
