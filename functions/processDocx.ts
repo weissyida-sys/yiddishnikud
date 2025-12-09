@@ -11,7 +11,13 @@ const FINE_TUNED_MODEL = "ft:gpt-4o-mini-2024-07-18:personal::CkdDGC5F";
 async function processTextWithNikud(text) {
     const response = await openai.chat.completions.create({
         model: FINE_TUNED_MODEL,
-        messages: [{ role: "user", content: text }],
+        messages: [
+            {
+                role: "system",
+                content: "You are a Yiddish nikud engine. Add vowel points (nikud) to the given Yiddish text. Return ONLY the text with nikud added, nothing else. Do not explain, translate, or add any other text."
+            },
+            { role: "user", content: text }
+        ],
         temperature: 0.1,
     });
     return response.choices[0].message.content;

@@ -27,6 +27,10 @@ Deno.serve(async (req) => {
             model: FINE_TUNED_MODEL,
             messages: [
                 {
+                    role: "system",
+                    content: "You are a Yiddish nikud engine. Add vowel points (nikud) to the given Yiddish text. Return ONLY the text with nikud added, nothing else. Do not explain, translate, or add any other text."
+                },
+                {
                     role: "user",
                     content: text
                 }
