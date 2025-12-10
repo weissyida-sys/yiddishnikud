@@ -19,6 +19,7 @@ async function processTextWithNikud(text) {
             { role: "user", content: text }
         ],
         temperature: 0.1,
+        max_tokens: 4096,
     });
     return response.choices[0].message.content;
 }
