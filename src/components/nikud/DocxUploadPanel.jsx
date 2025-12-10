@@ -33,20 +33,50 @@ export default function DocxUploadPanel() {
       return;
     }
 
-    toast.info("Testing file upload...");
+    toast.info("Processing document...");
     setIsProcessing(true);
+    setProgress(10);
 
     try {
-      console.log('Calling simpleTest...');
-      const result = await base44.functions.invoke('simpleTest', {});
-      console.log('Test result:', result);
+      // Convert file to base64
+      const reader = new FileReader();
+      const fileBase64 = await new Promise((resolve, reject) => {
+        reader.onload = () => resolve(reader.result.split(',')[1]);
+        reader.onerror = reject;
+        reader.readAsDataURL(selectedFile);
+      });
 
-      toast.success("Function works! " + result.data.message);
-      
+      setProgress(30);
+
+      console.log('Calling processEntireDocx...');
+      const result = await base44.functions.invoke('processEntireDocx', {
+        fileBase64: fileBase64,
+        fileName: selectedFile.name
+      });
+
+      setProgress(80);
+
+      console.log('Processing complete:', result.data);
+
+      // Convert base64 back to blob
+      const binaryString = atob(result.data.fileBase64);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+      const blob = new Blob([bytes], { 
+        type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' 
+      });
+
+      setProcessedFileBlob(blob);
+      setProgress(100);
+      toast.success("Document processed successfully!");
+
     } catch (error) {
-      console.error('Test error:', error);
-      toast.error("Test failed: " + error.message, { duration: 10000 });
-      
+      console.error('Processing error:', error);
+      toast.error("Processing failed: " + error.message, { duration: 10000 });
+      setProgress(0);
+
     } finally {
       setIsProcessing(false);
     }
@@ -58,7 +88,7 @@ export default function DocxUploadPanel() {
       return;
     }
 
-    const url = URL.createObjectURL(new Blob([processedFileBlob]));
+    const url = URL.createObjectURL(processedFileBlob);
     const link = document.createElement('a');
     link.href = url;
     link.download = selectedFile.name.replace('.docx', '.nikud.docx');
@@ -66,7 +96,7 @@ export default function DocxUploadPanel() {
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
-    
+
     toast.success("Downloaded!");
   };
 

@@ -17,30 +17,29 @@ Deno.serve(async (req) => {
             return Response.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const formData = await req.formData();
-        const file = formData.get('file');
+        const body = await req.json();
+        const { fileBase64, fileName } = body;
 
-        if (!file) {
-            return Response.json({ error: 'File is required' }, { status: 400 });
+        if (!fileBase64 || !fileName) {
+            return Response.json({ error: 'fileBase64 and fileName are required' }, { status: 400 });
         }
 
-        console.log('Reading DOCX file...');
-        const arrayBuffer = await file.arrayBuffer();
-        const zip = new PizZip(arrayBuffer);
-        
-        // Extract document.xml
+        // Decode base64 to binary
+        const binaryString = atob(fileBase64);
+        const bytes = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+            bytes[i] = binaryString.charCodeAt(i);
+        }
+
+        // Load the DOCX
+        const zip = new PizZip(bytes);
         let docXml = zip.file("word/document.xml").asText();
-        
-        console.log('Extracting paragraphs...');
+
+        // Extract paragraphs with Hebrew text
         const paragraphs = extractParagraphs(docXml);
-        console.log(`Found ${paragraphs.length} paragraphs with Hebrew text`);
-        
-        // Process each paragraph with nikud
-        console.log('Processing paragraphs with AI...');
-        for (let i = 0; i < paragraphs.length; i++) {
-            const para = paragraphs[i];
-            console.log(`Processing paragraph ${i + 1}/${paragraphs.length}`);
-            
+
+        // Process each paragraph with OpenAI
+        for (const para of paragraphs) {
             const response = await openai.chat.completions.create({
                 model: FINE_TUNED_MODEL,
                 messages: [
@@ -53,12 +52,11 @@ Deno.serve(async (req) => {
                 temperature: 0.1,
                 max_tokens: 4096,
             });
-            
+
             para.nikudText = response.choices[0].message.content;
         }
-        
-        console.log('Rebuilding DOCX with nikud...');
-        // Replace text in each paragraph (process in reverse order)
+
+        // Rebuild the document XML
         const sortedParagraphs = [...paragraphs].sort((a, b) => b.startIndex - a.startIndex);
         
         for (const para of sortedParagraphs) {
@@ -67,23 +65,27 @@ Deno.serve(async (req) => {
                      updatedParaXml + 
                      docXml.substring(para.startIndex + para.fullXml.length);
         }
-        
+
         // Update the zip with new content
         zip.file("word/document.xml", docXml);
-        
-        // Generate new DOCX
-        const newDocx = zip.generate({
-            type: "nodebuffer",
+
+        // Generate new DOCX as base64
+        const newDocxBuffer = zip.generate({
+            type: "uint8array",
             mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
         });
-        
-        console.log('DOCX processing complete!');
-        return new Response(newDocx, {
-            status: 200,
-            headers: {
-                'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-                'Content-Disposition': `attachment; filename="${file.name.replace('.docx', '')}.nikud.docx"`
-            }
+
+        // Convert to base64
+        let binary = '';
+        for (let i = 0; i < newDocxBuffer.length; i++) {
+            binary += String.fromCharCode(newDocxBuffer[i]);
+        }
+        const newFileBase64 = btoa(binary);
+
+        return Response.json({
+            success: true,
+            fileBase64: newFileBase64,
+            fileName: fileName.replace('.docx', '.nikud.docx')
         });
 
     } catch (error) {
