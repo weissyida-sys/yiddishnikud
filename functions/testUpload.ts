@@ -9,20 +9,20 @@ Deno.serve(async (req) => {
             return Response.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const formData = await req.formData();
-        const file = formData.get('file');
+        const body = await req.json();
+        const { fileBase64, fileName, fileSize } = body;
 
-        if (!file) {
+        if (!fileBase64) {
             return Response.json({ error: 'File is required' }, { status: 400 });
         }
 
-        console.log('File received:', file.name, file.size);
+        console.log('File received:', fileName, fileSize);
 
         return Response.json({
             success: true,
             message: 'File uploaded successfully',
-            fileName: file.name,
-            fileSize: file.size
+            fileName: fileName,
+            fileSize: fileSize
         });
 
     } catch (error) {
