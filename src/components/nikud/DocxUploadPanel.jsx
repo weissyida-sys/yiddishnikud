@@ -45,7 +45,9 @@ export default function DocxUploadPanel() {
       const formData = new FormData();
       formData.append('file', selectedFile);
 
+      console.log('Calling extractDocxForNikud...');
       const extractResult = await base44.functions.invoke('extractDocxForNikud', formData);
+      console.log('Extract result:', extractResult);
       
       if (!extractResult.data.success) {
         throw new Error(extractResult.data.error || "Failed to extract paragraphs");
