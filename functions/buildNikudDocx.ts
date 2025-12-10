@@ -11,14 +11,20 @@ Deno.serve(async (req) => {
         }
 
         const body = await req.json();
-        const { originalDocData, paragraphs, fileName } = body;
+        const { fileUri, paragraphs, fileName } = body;
 
-        if (!originalDocData || !paragraphs) {
+        if (!fileUri || !paragraphs) {
             return Response.json({ error: 'Missing required data' }, { status: 400 });
         }
 
-        // Reconstruct the original DOCX from the array buffer
-        const arrayBuffer = new Uint8Array(originalDocData.zip).buffer;
+        // Download the original DOCX from storage
+        const signedUrlResult = await base44.asServiceRole.integrations.Core.CreateFileSignedUrl({
+            file_uri: fileUri,
+            expires_in: 300
+        });
+        
+        const docResponse = await fetch(signedUrlResult.signed_url);
+        const arrayBuffer = await docResponse.arrayBuffer();
         const zip = new PizZip(arrayBuffer);
         
         // Extract document.xml

@@ -27,23 +27,23 @@ Deno.serve(async (req) => {
         // Extract paragraphs with their text and position
         const paragraphs = extractParagraphs(docXml);
         
-        // Save original DOCX to temporary storage
+        // Upload original DOCX to Base44 storage
         const docId = crypto.randomUUID();
-        const originalDocData = {
-            zip: Array.from(new Uint8Array(arrayBuffer)),
-            fileName: file.name,
-            timestamp: Date.now()
-        };
+        const blob = new Blob([arrayBuffer], { 
+            type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' 
+        });
         
-        // Store in a temporary way (we'll use this ID to retrieve it later)
-        // For now, we'll return it back to frontend to send back later
+        // Upload to Base44
+        const uploadResult = await base44.integrations.Core.UploadPrivateFile({
+            file: blob
+        });
         
         return Response.json({
             success: true,
             docId: docId,
             fileName: file.name,
             paragraphs: paragraphs,
-            originalDocData: originalDocData // Frontend will send this back
+            fileUri: uploadResult.file_uri // Store file URI instead of entire file
         });
 
     } catch (error) {

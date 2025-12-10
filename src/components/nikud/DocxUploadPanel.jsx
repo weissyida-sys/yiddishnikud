@@ -51,7 +51,7 @@ export default function DocxUploadPanel() {
         throw new Error(extractResult.data.error || "Failed to extract paragraphs");
       }
 
-      const { paragraphs, originalDocData, fileName } = extractResult.data;
+      const { paragraphs, fileUri, fileName } = extractResult.data;
       console.log(`Extracted ${paragraphs.length} paragraphs`);
       
       setProgress(10);
@@ -89,7 +89,7 @@ export default function DocxUploadPanel() {
       // Step 3: Build final DOCX with nikud
       console.log('Step 3: Building final DOCX...');
       const buildResult = await base44.functions.invoke('buildNikudDocx', {
-        originalDocData: originalDocData,
+        fileUri: fileUri,
         paragraphs: processedParagraphs,
         fileName: fileName
       });
