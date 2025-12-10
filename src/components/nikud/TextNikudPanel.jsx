@@ -20,7 +20,7 @@ export default function TextNikudPanel() {
     }
 
     setIsProcessing(true);
-    console.log('Starting nikud processing...', { inputText, config });
+    console.log('Starting nikud processing...', { inputText });
     
     try {
       console.log('Calling processNikud function...');
