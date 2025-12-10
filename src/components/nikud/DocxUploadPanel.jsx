@@ -33,35 +33,25 @@ export default function DocxUploadPanel() {
       return;
     }
 
-    toast.info("Processing your document... This will take several minutes.");
+    toast.info("Testing file upload...");
     setIsProcessing(true);
-    setProgress(30);
 
     try {
       const formData = new FormData();
       formData.append('file', selectedFile);
 
-      setProgress(50);
-      const result = await base44.functions.invoke('processEntireDocx', formData);
-      setProgress(100);
+      console.log('Sending file to testUpload...');
+      const result = await base44.functions.invoke('testUpload', formData);
+      console.log('Test result:', result);
 
-      setProcessedFileBlob(result.data);
-      toast.success("File processed successfully!");
+      toast.success("Test successful! File: " + result.data.fileName);
       
     } catch (error) {
-      setProgress(0);
-      console.error('Error:', error);
-      
-      let errorMsg = error.message || "Unknown error occurred";
-      if (error.response?.data?.error) {
-        errorMsg = error.response.data.error;
-      }
-      
-      toast.error("Error: " + errorMsg, { duration: 10000 });
+      console.error('Test error:', error);
+      toast.error("Test failed: " + error.message, { duration: 10000 });
       
     } finally {
       setIsProcessing(false);
-      setTimeout(() => setProgress(0), 2000);
     }
   };
 
