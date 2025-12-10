@@ -29,13 +29,15 @@ Deno.serve(async (req) => {
         
         // Upload original DOCX to Base44 storage
         const docId = crypto.randomUUID();
-        const blob = new Blob([arrayBuffer], { 
+        
+        // Create a File object from arrayBuffer
+        const fileBlob = new File([arrayBuffer], file.name, { 
             type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' 
         });
         
         // Upload to Base44
-        const uploadResult = await base44.integrations.Core.UploadPrivateFile({
-            file: blob
+        const uploadResult = await base44.asServiceRole.integrations.Core.UploadPrivateFile({
+            file: fileBlob
         });
         
         return Response.json({
