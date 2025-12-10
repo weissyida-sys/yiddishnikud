@@ -7,7 +7,7 @@ import { Upload, FileText, Download, Loader2, CheckCircle2, X } from "lucide-rea
 import { toast } from "sonner";
 import { base44 } from "@/api/base44Client";
 
-export default function DocxUploadPanel({ config }) {
+export default function DocxUploadPanel() {
   const [selectedFile, setSelectedFile] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);

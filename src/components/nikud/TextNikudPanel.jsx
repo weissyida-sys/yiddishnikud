@@ -7,7 +7,7 @@ import { Loader2, Copy, CheckCircle2, Sparkles, Download } from "lucide-react";
 import { toast } from "sonner";
 import { base44 } from "@/api/base44Client";
 
-export default function TextNikudPanel({ config }) {
+export default function TextNikudPanel() {
   const [inputText, setInputText] = useState("");
   const [outputText, setOutputText] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
