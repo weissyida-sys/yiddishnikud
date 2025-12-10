@@ -77,7 +77,7 @@ Deno.serve(async (req) => {
 });
 
 async function processDocxXml(xml) {
-    // Extract all text runs and process them
+    // Extract all text runs
     const textRegex = /<w:t[^>]*>([^<]*)<\/w:t>/g;
     const matches = [];
     let match;
@@ -90,15 +90,41 @@ async function processDocxXml(xml) {
         });
     }
     
-    // Process all Hebrew text
-    let processedXml = xml;
-    for (let i = matches.length - 1; i >= 0; i--) {
-        const m = matches[i];
-        if (/[\u0590-\u05FF]/.test(m.text)) {
-            const nikudText = await processTextWithNikud(m.text);
-            const newTag = m.fullMatch.replace(m.text, nikudText);
-            processedXml = processedXml.substring(0, m.index) + newTag + processedXml.substring(m.index + m.fullMatch.length);
+    // Batch Hebrew text together for faster processing
+    const hebrewMatches = matches.filter(m => /[\u0590-\u05FF]/.test(m.text));
+    
+    if (hebrewMatches.length === 0) {
+        return xml;
+    }
+    
+    // Combine all Hebrew text with markers
+    const combinedText = hebrewMatches.map((m, i) => `[${i}]${m.text}[/${i}]`).join(' ');
+    
+    // Process all at once
+    const nikudCombined = await processTextWithNikud(combinedText);
+    
+    // Split back using markers
+    const nikudTexts = [];
+    for (let i = 0; i < hebrewMatches.length; i++) {
+        const startMarker = `[${i}]`;
+        const endMarker = `[/${i}]`;
+        const startIdx = nikudCombined.indexOf(startMarker);
+        const endIdx = nikudCombined.indexOf(endMarker);
+        
+        if (startIdx !== -1 && endIdx !== -1) {
+            nikudTexts.push(nikudCombined.substring(startIdx + startMarker.length, endIdx).trim());
+        } else {
+            nikudTexts.push(hebrewMatches[i].text);
         }
+    }
+    
+    // Replace in XML (backwards to maintain indices)
+    let processedXml = xml;
+    for (let i = hebrewMatches.length - 1; i >= 0; i--) {
+        const m = hebrewMatches[i];
+        const nikudText = nikudTexts[i];
+        const newTag = m.fullMatch.replace(m.text, nikudText);
+        processedXml = processedXml.substring(0, m.index) + newTag + processedXml.substring(m.index + m.fullMatch.length);
     }
     
     return processedXml;
