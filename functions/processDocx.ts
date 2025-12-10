@@ -78,6 +78,8 @@ Deno.serve(async (req) => {
 });
 
 async function processDocxXml(xml) {
+    console.log('Starting XML processing...');
+    
     // Extract all text runs
     const textRegex = /<w:t[^>]*>([^<]*)<\/w:t>/g;
     const matches = [];
@@ -91,33 +93,50 @@ async function processDocxXml(xml) {
         });
     }
     
+    console.log(`Found ${matches.length} text segments`);
+    
     // Batch Hebrew text together for faster processing
     const hebrewMatches = matches.filter(m => /[\u0590-\u05FF]/.test(m.text));
+    
+    console.log(`Found ${hebrewMatches.length} Hebrew text segments`);
     
     if (hebrewMatches.length === 0) {
         return xml;
     }
     
-    // Combine all Hebrew text with markers
-    const combinedText = hebrewMatches.map((m, i) => `[${i}]${m.text}[/${i}]`).join(' ');
+    // Process in smaller batches to avoid timeout
+    const BATCH_SIZE = 50; // Process 50 segments at a time
+    const nikudTexts = new Array(hebrewMatches.length);
     
-    // Process all at once
-    const nikudCombined = await processTextWithNikud(combinedText);
-    
-    // Split back using markers
-    const nikudTexts = [];
-    for (let i = 0; i < hebrewMatches.length; i++) {
-        const startMarker = `[${i}]`;
-        const endMarker = `[/${i}]`;
-        const startIdx = nikudCombined.indexOf(startMarker);
-        const endIdx = nikudCombined.indexOf(endMarker);
+    for (let batchStart = 0; batchStart < hebrewMatches.length; batchStart += BATCH_SIZE) {
+        const batchEnd = Math.min(batchStart + BATCH_SIZE, hebrewMatches.length);
+        const batch = hebrewMatches.slice(batchStart, batchEnd);
         
-        if (startIdx !== -1 && endIdx !== -1) {
-            nikudTexts.push(nikudCombined.substring(startIdx + startMarker.length, endIdx).trim());
-        } else {
-            nikudTexts.push(hebrewMatches[i].text);
+        console.log(`Processing batch ${Math.floor(batchStart / BATCH_SIZE) + 1}/${Math.ceil(hebrewMatches.length / BATCH_SIZE)}`);
+        
+        // Combine batch text with markers
+        const combinedText = batch.map((m, i) => `[${batchStart + i}]${m.text}[/${batchStart + i}]`).join(' ');
+        
+        // Process batch
+        const nikudCombined = await processTextWithNikud(combinedText);
+        
+        // Split back using markers
+        for (let i = 0; i < batch.length; i++) {
+            const globalIdx = batchStart + i;
+            const startMarker = `[${globalIdx}]`;
+            const endMarker = `[/${globalIdx}]`;
+            const startIdx = nikudCombined.indexOf(startMarker);
+            const endIdx = nikudCombined.indexOf(endMarker);
+            
+            if (startIdx !== -1 && endIdx !== -1) {
+                nikudTexts[globalIdx] = nikudCombined.substring(startIdx + startMarker.length, endIdx).trim();
+            } else {
+                nikudTexts[globalIdx] = hebrewMatches[globalIdx].text;
+            }
         }
     }
+    
+    console.log('All batches processed, replacing in XML...');
     
     // Replace in XML (backwards to maintain indices)
     let processedXml = xml;
@@ -128,5 +147,6 @@ async function processDocxXml(xml) {
         processedXml = processedXml.substring(0, m.index) + newTag + processedXml.substring(m.index + m.fullMatch.length);
     }
     
+    console.log('XML processing complete!');
     return processedXml;
 }
