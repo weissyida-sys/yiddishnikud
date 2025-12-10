@@ -33,12 +33,17 @@ export default function DocxUploadPanel() {
       return;
     }
 
+    console.log('Starting DOCX processing...');
+    toast.info("Starting to process your document...");
+    
     setIsProcessing(true);
     setProgress(10);
 
     try {
       const formData = new FormData();
       formData.append('file', selectedFile);
+
+      console.log('Calling processDocx function...');
 
       // Simulate progress
       const progressInterval = setInterval(() => {
@@ -47,6 +52,7 @@ export default function DocxUploadPanel() {
 
       const result = await base44.functions.invoke('processDocx', formData);
       
+      console.log('Function completed:', result);
       clearInterval(progressInterval);
       setProgress(100);
 
@@ -57,7 +63,7 @@ export default function DocxUploadPanel() {
     } catch (error) {
       setProgress(0);
       toast.error("Error: " + error.message);
-      console.error(error);
+      console.error('Processing error:', error);
     } finally {
       setIsProcessing(false);
       setTimeout(() => setProgress(0), 1000);
