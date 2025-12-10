@@ -36,6 +36,7 @@ Deno.serve(async (req) => {
                 }
             ],
             temperature: 0.1,
+            max_tokens: 4096,
         });
 
         const nikudText = response.choices[0].message.content;
