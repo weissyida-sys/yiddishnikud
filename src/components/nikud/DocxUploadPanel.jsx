@@ -34,10 +34,12 @@ export default function DocxUploadPanel() {
     }
 
     console.log('Starting DOCX processing...');
-    toast.info("Starting to process your document...");
+    toast.info("Starting to process your document... This may take 10-15 minutes.");
     
     setIsProcessing(true);
     setProgress(10);
+    
+    let progressInterval;
 
     try {
       const formData = new FormData();
@@ -45,14 +47,20 @@ export default function DocxUploadPanel() {
 
       console.log('Calling processDocx function...');
 
-      // Simulate progress
-      const progressInterval = setInterval(() => {
-        setProgress(p => Math.min(p + 5, 90));
-      }, 500);
+      // Simulate progress slowly for long processing
+      progressInterval = setInterval(() => {
+        setProgress(p => {
+          if (p < 85) return p + 1;
+          return p;
+        });
+      }, 10000); // Update every 10 seconds
 
       const result = await base44.functions.invoke('processDocx', formData);
       
       console.log('Function completed:', result);
+      console.log('Result type:', typeof result.data);
+      console.log('Result data:', result.data);
+      
       clearInterval(progressInterval);
       setProgress(100);
 
@@ -61,12 +69,23 @@ export default function DocxUploadPanel() {
       toast.success("File processed successfully!");
       
     } catch (error) {
+      if (progressInterval) clearInterval(progressInterval);
       setProgress(0);
-      toast.error("Error: " + error.message);
-      console.error('Processing error:', error);
+      
+      console.error('Full error object:', error);
+      console.error('Error message:', error.message);
+      console.error('Error response:', error.response);
+      
+      let errorMsg = error.message || "Unknown error occurred";
+      if (error.response?.data?.error) {
+        errorMsg = error.response.data.error;
+      }
+      
+      toast.error("Error: " + errorMsg, { duration: 10000 });
+      
     } finally {
       setIsProcessing(false);
-      setTimeout(() => setProgress(0), 1000);
+      setTimeout(() => setProgress(0), 2000);
     }
   };
 
