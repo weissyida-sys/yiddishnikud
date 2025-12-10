@@ -33,82 +33,24 @@ export default function DocxUploadPanel() {
       return;
     }
 
-    console.log('Starting DOCX processing...');
-    toast.info("Starting to process your document... This will take several minutes.");
-    
+    toast.info("Processing your document... This will take several minutes.");
     setIsProcessing(true);
-    setProgress(5);
+    setProgress(30);
 
     try {
-      // Step 1: Extract paragraphs from DOCX
-      console.log('Step 1: Extracting paragraphs...');
       const formData = new FormData();
       formData.append('file', selectedFile);
 
-      console.log('Calling extractDocxForNikud...');
-      const extractResult = await base44.functions.invoke('extractDocxForNikud', formData);
-      console.log('Extract result:', extractResult);
-      
-      if (!extractResult.data.success) {
-        throw new Error(extractResult.data.error || "Failed to extract paragraphs");
-      }
-
-      const { paragraphs, fileUri, fileName } = extractResult.data;
-      console.log(`Extracted ${paragraphs.length} paragraphs`);
-      
-      setProgress(10);
-
-      // Step 2: Process each paragraph one by one
-      console.log('Step 2: Processing paragraphs with nikud...');
-      const processedParagraphs = [];
-      
-      for (let i = 0; i < paragraphs.length; i++) {
-        const para = paragraphs[i];
-        
-        console.log(`Processing paragraph ${i + 1}/${paragraphs.length}`);
-        
-        const nikudResult = await base44.functions.invoke('nikudParagraph', {
-          text: para.text
-        });
-        
-        if (!nikudResult.data.success) {
-          throw new Error(`Failed to process paragraph ${i + 1}`);
-        }
-        
-        processedParagraphs.push({
-          ...para,
-          nikudText: nikudResult.data.nikudText
-        });
-        
-        // Update progress (10% to 85%)
-        const progressPercent = 10 + Math.floor((i + 1) / paragraphs.length * 75);
-        setProgress(progressPercent);
-      }
-      
-      console.log('All paragraphs processed!');
-      setProgress(90);
-
-      // Step 3: Build final DOCX with nikud
-      console.log('Step 3: Building final DOCX...');
-      const buildResult = await base44.functions.invoke('buildNikudDocx', {
-        fileUri: fileUri,
-        paragraphs: processedParagraphs,
-        fileName: fileName
-      });
-      
-      console.log('DOCX built successfully!');
+      setProgress(50);
+      const result = await base44.functions.invoke('processEntireDocx', formData);
       setProgress(100);
 
-      // The result should be a Blob
-      setProcessedFileBlob(buildResult.data);
+      setProcessedFileBlob(result.data);
       toast.success("File processed successfully!");
       
     } catch (error) {
       setProgress(0);
-      
-      console.error('Full error object:', error);
-      console.error('Error message:', error.message);
-      console.error('Error response:', error.response);
+      console.error('Error:', error);
       
       let errorMsg = error.message || "Unknown error occurred";
       if (error.response?.data?.error) {
