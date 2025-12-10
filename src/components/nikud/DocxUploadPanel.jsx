@@ -37,23 +37,11 @@ export default function DocxUploadPanel() {
     setIsProcessing(true);
 
     try {
-      // Convert file to base64
-      const reader = new FileReader();
-      const fileBase64 = await new Promise((resolve, reject) => {
-        reader.onload = () => resolve(reader.result.split(',')[1]);
-        reader.onerror = reject;
-        reader.readAsDataURL(selectedFile);
-      });
-
-      console.log('Sending file as base64...');
-      const result = await base44.functions.invoke('testUpload', {
-        fileBase64: fileBase64,
-        fileName: selectedFile.name,
-        fileSize: selectedFile.size
-      });
+      console.log('Calling simpleTest...');
+      const result = await base44.functions.invoke('simpleTest', {});
       console.log('Test result:', result);
 
-      toast.success("Test successful! File: " + result.data.fileName);
+      toast.success("Function works! " + result.data.message);
       
     } catch (error) {
       console.error('Test error:', error);
