@@ -30,23 +30,20 @@ Deno.serve(async (req) => {
         // Upload original DOCX to Base44 storage
         const docId = crypto.randomUUID();
         
-        // Create a Blob from arrayBuffer
-        const blob = new Blob([arrayBuffer], { 
-            type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' 
-        });
+        // Save to temp file and upload
+        const tempPath = `/tmp/${docId}.docx`;
+        await Deno.writeFile(tempPath, new Uint8Array(arrayBuffer));
         
-        // Convert to base64 for upload
-        const bytes = new Uint8Array(arrayBuffer);
-        let binary = '';
-        for (let i = 0; i < bytes.byteLength; i++) {
-            binary += String.fromCharCode(bytes[i]);
-        }
-        const base64 = btoa(binary);
+        // Read as file for upload
+        const fileData = await Deno.readFile(tempPath);
         
         // Upload to Base44
         const uploadResult = await base44.asServiceRole.integrations.Core.UploadPrivateFile({
-            file: base64
+            file: fileData
         });
+        
+        // Clean up temp file
+        await Deno.remove(tempPath);
         
         return Response.json({
             success: true,
