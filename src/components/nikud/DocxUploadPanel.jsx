@@ -150,7 +150,7 @@ export default function DocxUploadPanel() {
             </Card>
           )}
 
-          {isProcessing && progress > 0 && (
+          {isProcessing && (
             <div className="space-y-3">
               <div className="flex items-center justify-between text-sm">
                 <span className="text-gray-600">Processing...</span>
