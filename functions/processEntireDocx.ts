@@ -45,15 +45,22 @@ Deno.serve(async (req) => {
                 messages: [
                     {
                         role: "system",
-                        content: "You are a Yiddish nikud engine. Add vowel points (nikud) to the given Yiddish text. Return ONLY the text with nikud added, nothing else."
+                        content: "You are a Yiddish nikud engine. Add vowel points (nikud) to the given Yiddish text. Return ONLY the text with nikud added, nothing else. IMPORTANT: Return the COMPLETE text with nikud - do not cut off in the middle."
                     },
                     { role: "user", content: para.text }
                 ],
                 temperature: 0.1,
-                max_tokens: 4096,
+                max_tokens: 16000,
             });
 
-            para.nikudText = response.choices[0].message.content;
+            const nikudText = response.choices[0].message.content;
+            
+            // Check if response might be incomplete
+            if (response.choices[0].finish_reason !== 'stop') {
+                console.warn(`Warning: Paragraph ${para.id} may be incomplete. Finish reason: ${response.choices[0].finish_reason}`);
+            }
+            
+            para.nikudText = nikudText;
         }
 
         // Rebuild the document XML
