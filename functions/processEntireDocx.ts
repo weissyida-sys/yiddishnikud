@@ -128,18 +128,43 @@ function extractParagraphs(xml) {
 }
 
 function replaceTextInParagraph(paragraphXml, newText) {
+    // Find all text runs
     const textRegex = /(<w:t[^>]*>)([^<]*)(<\/w:t>)/g;
-    let hasReplaced = false;
+    const runs = [];
+    let match;
     
-    const result = paragraphXml.replace(textRegex, (match, openTag, oldText, closeTag) => {
-        if (!hasReplaced && /[\u0590-\u05FF]/.test(oldText)) {
-            hasReplaced = true;
-            return openTag + newText + closeTag;
-        } else if (hasReplaced && /[\u0590-\u05FF]/.test(oldText)) {
-            return '';
+    while ((match = textRegex.exec(paragraphXml)) !== null) {
+        runs.push({
+            fullMatch: match[0],
+            openTag: match[1],
+            text: match[2],
+            closeTag: match[3],
+            index: match.index
+        });
+    }
+    
+    // Filter Hebrew runs
+    const hebrewRuns = runs.filter(run => /[\u0590-\u05FF]/.test(run.text));
+    
+    if (hebrewRuns.length === 0) {
+        return paragraphXml;
+    }
+    
+    // Replace first Hebrew run with all nikud text, keep others as-is
+    let result = paragraphXml;
+    let replaced = false;
+    
+    for (const run of runs.reverse()) {
+        if (/[\u0590-\u05FF]/.test(run.text)) {
+            if (!replaced) {
+                // First Hebrew run gets the nikud text
+                const newRun = run.openTag + newText + run.closeTag;
+                result = result.substring(0, run.index) + newRun + result.substring(run.index + run.fullMatch.length);
+                replaced = true;
+            }
+            // Keep other Hebrew runs as-is (don't delete them)
         }
-        return match;
-    });
+    }
     
     return result;
 }
