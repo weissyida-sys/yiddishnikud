@@ -53,21 +53,22 @@ Deno.serve(async (req) => {
                 max_tokens: 16000,
             });
 
-            const nikudText = response.choices[0].message.content;
+            const nikudText = response.choices[0].message.content.trim();
             
             // Check if response might be incomplete
             if (response.choices[0].finish_reason !== 'stop') {
                 console.warn(`Warning: Paragraph ${para.id} may be incomplete. Finish reason: ${response.choices[0].finish_reason}`);
             }
             
-            para.nikudText = nikudText;
+            // Map nikud text back to original text runs
+            para.nikudText = distributeNikudToRuns(para.textRuns, nikudText);
         }
 
         // Rebuild the document XML
         const sortedParagraphs = [...paragraphs].sort((a, b) => b.startIndex - a.startIndex);
         
         for (const para of sortedParagraphs) {
-            const updatedParaXml = replaceTextInParagraph(para.fullXml, para.nikudText);
+            const updatedParaXml = replaceTextInParagraphRuns(para.fullXml, para.nikudText);
             docXml = docXml.substring(0, para.startIndex) + 
                      updatedParaXml + 
                      docXml.substring(para.startIndex + para.fullXml.length);
@@ -113,10 +114,16 @@ function extractParagraphs(xml) {
     while ((pMatch = paragraphRegex.exec(xml)) !== null) {
         const paragraphXml = pMatch[1];
         const textRegex = /<w:t[^>]*>([^<]*)<\/w:t>/g;
+        const textRuns = [];
         let textContent = '';
         let tMatch;
         
         while ((tMatch = textRegex.exec(paragraphXml)) !== null) {
+            textRuns.push({
+                text: tMatch[1],
+                startIndex: tMatch.index,
+                fullMatch: tMatch[0]
+            });
             textContent += tMatch[1];
         }
         
@@ -124,6 +131,7 @@ function extractParagraphs(xml) {
             paragraphs.push({
                 id: pIndex,
                 text: textContent,
+                textRuns: textRuns,
                 fullXml: pMatch[0],
                 startIndex: pMatch.index
             });
@@ -134,14 +142,46 @@ function extractParagraphs(xml) {
     return paragraphs;
 }
 
-function replaceTextInParagraph(paragraphXml, newText) {
-    // Find all text runs
-    const textRegex = /(<w:t[^>]*>)([^<]*)(<\/w:t>)/g;
-    const runs = [];
-    let match;
+function distributeNikudToRuns(textRuns, nikudText) {
+    // Map nikud text back to original runs by matching characters
+    const nikudChars = Array.from(nikudText);
+    const result = [];
+    let nikudIndex = 0;
     
+    for (const run of textRuns) {
+        const runChars = Array.from(run.text);
+        let runNikud = '';
+        
+        for (let i = 0; i < runChars.length && nikudIndex < nikudChars.length; i++) {
+            // Take characters from nikud until we match the base character count
+            runNikud += nikudChars[nikudIndex];
+            nikudIndex++;
+            
+            // Check if next chars are nikud marks (U+0591-U+05C7), if so, include them
+            while (nikudIndex < nikudChars.length && 
+                   nikudChars[nikudIndex].charCodeAt(0) >= 0x0591 && 
+                   nikudChars[nikudIndex].charCodeAt(0) <= 0x05C7) {
+                runNikud += nikudChars[nikudIndex];
+                nikudIndex++;
+            }
+        }
+        
+        result.push(runNikud);
+    }
+    
+    return result;
+}
+
+function replaceTextInParagraphRuns(paragraphXml, nikudTexts) {
+    const textRegex = /(<w:t[^>]*>)([^<]*)(<\/w:t>)/g;
+    let result = paragraphXml;
+    let textRunIndex = 0;
+    
+    // Replace from end to start to preserve indices
+    const matches = [];
+    let match;
     while ((match = textRegex.exec(paragraphXml)) !== null) {
-        runs.push({
+        matches.push({
             fullMatch: match[0],
             openTag: match[1],
             text: match[2],
@@ -150,26 +190,13 @@ function replaceTextInParagraph(paragraphXml, newText) {
         });
     }
     
-    // Filter Hebrew runs
-    const hebrewRuns = runs.filter(run => /[\u0590-\u05FF]/.test(run.text));
-    
-    if (hebrewRuns.length === 0) {
-        return paragraphXml;
-    }
-    
-    // Replace first Hebrew run with all nikud text, keep others as-is
-    let result = paragraphXml;
-    let replaced = false;
-    
-    for (const run of runs.reverse()) {
-        if (/[\u0590-\u05FF]/.test(run.text)) {
-            if (!replaced) {
-                // First Hebrew run gets the nikud text
-                const newRun = run.openTag + newText + run.closeTag;
-                result = result.substring(0, run.index) + newRun + result.substring(run.index + run.fullMatch.length);
-                replaced = true;
-            }
-            // Keep other Hebrew runs as-is (don't delete them)
+    for (let i = matches.length - 1; i >= 0; i--) {
+        const m = matches[i];
+        if (/[\u0590-\u05FF]/.test(m.text)) {
+            const newText = nikudTexts[textRunIndex] || m.text;
+            const newRun = m.openTag + newText + m.closeTag;
+            result = result.substring(0, m.index) + newRun + result.substring(m.index + m.fullMatch.length);
+            textRunIndex++;
         }
     }
     
