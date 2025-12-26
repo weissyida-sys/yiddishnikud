@@ -196,7 +196,12 @@ function replaceTextInParagraph(paragraphXml, nikudText) {
         if (/[\u0590-\u05FF]/.test(m.text)) {
             if (!replaced) {
                 // First Hebrew run - replace with nikud text
-                const newRun = m.openTag + nikudText + m.closeTag;
+                // Ensure xml:space="preserve" is present for proper text handling
+                let openTag = m.openTag;
+                if (!openTag.includes('xml:space')) {
+                    openTag = '<w:t xml:space="preserve">';
+                }
+                const newRun = openTag + nikudText + m.closeTag;
                 result = result.substring(0, m.index) + newRun + result.substring(m.index + m.fullMatch.length);
                 replaced = true;
             } else {
