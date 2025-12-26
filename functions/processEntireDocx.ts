@@ -39,30 +39,47 @@ Deno.serve(async (req) => {
         const paragraphs = extractParagraphs(docXml);
 
         // Process each paragraph with OpenAI
-        for (const para of paragraphs) {
-            const response = await openai.chat.completions.create({
-                model: FINE_TUNED_MODEL,
-                messages: [
-                    {
-                        role: "system",
-                        content: "You are a Yiddish nikud engine. Add vowel points (nikud) to the given Yiddish text. Return ONLY the text with nikud added, nothing else. IMPORTANT: Return the COMPLETE text with nikud - do not cut off in the middle."
-                    },
-                    { role: "user", content: para.text }
-                ],
-                temperature: 0.1,
-                max_tokens: 16000,
-            });
+        console.log(`Processing ${paragraphs.length} paragraphs...`);
+        
+        for (let i = 0; i < paragraphs.length; i++) {
+            const para = paragraphs[i];
+            console.log(`Processing paragraph ${i + 1}/${paragraphs.length}, length: ${para.text.length} chars`);
+            
+            try {
+                const response = await openai.chat.completions.create({
+                    model: FINE_TUNED_MODEL,
+                    messages: [
+                        {
+                            role: "system",
+                            content: "You are a Yiddish nikud engine. Add vowel points (nikud) to the given Yiddish text. Return ONLY the text with nikud added, nothing else. IMPORTANT: Return the COMPLETE text with nikud - do not cut off in the middle."
+                        },
+                        { role: "user", content: para.text }
+                    ],
+                    temperature: 0.1,
+                    max_tokens: 16000,
+                    timeout: 120000, // 2 minutes per paragraph
+                });
 
-            const nikudText = response.choices[0].message.content.trim();
-            
-            // Check if response might be incomplete
-            if (response.choices[0].finish_reason !== 'stop') {
-                console.warn(`Warning: Paragraph ${para.id} may be incomplete. Finish reason: ${response.choices[0].finish_reason}`);
+                const nikudText = response.choices[0].message.content.trim();
+                
+                // Check if response might be incomplete
+                if (response.choices[0].finish_reason !== 'stop') {
+                    console.warn(`Warning: Paragraph ${para.id} may be incomplete. Finish reason: ${response.choices[0].finish_reason}`);
+                }
+                
+                // Map nikud text back to original text runs
+                para.nikudText = distributeNikudToRuns(para.textRuns, nikudText);
+                
+                console.log(`✓ Completed paragraph ${i + 1}/${paragraphs.length}`);
+                
+            } catch (paraError) {
+                console.error(`Error processing paragraph ${i + 1}:`, paraError.message);
+                // Keep original text if processing fails
+                para.nikudText = para.textRuns.map(run => run.text);
             }
-            
-            // Map nikud text back to original text runs
-            para.nikudText = distributeNikudToRuns(para.textRuns, nikudText);
         }
+        
+        console.log('All paragraphs processed successfully');
 
         // Rebuild the document XML
         const sortedParagraphs = [...paragraphs].sort((a, b) => b.startIndex - a.startIndex);
@@ -98,8 +115,10 @@ Deno.serve(async (req) => {
 
     } catch (error) {
         console.error('Error in processEntireDocx:', error);
+        console.error('Error stack:', error.stack);
         return Response.json({ 
-            error: error.message,
+            error: error.message || 'Unknown error occurred',
+            errorDetails: error.stack,
             success: false 
         }, { status: 500 });
     }
