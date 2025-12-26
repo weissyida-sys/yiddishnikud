@@ -55,7 +55,7 @@ export default function DocxUploadPanel() {
       
       // Set a longer timeout for large documents
       const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Processing timeout - document may be too large. Try splitting it into smaller sections.')), 300000) // 5 minutes
+        setTimeout(() => reject(new Error('Processing timeout - document may be too large. Try splitting it into smaller sections.')), 1200000) // 20 minutes
       );
 
       setProgress(30);
@@ -193,7 +193,7 @@ export default function DocxUploadPanel() {
               </div>
               <Progress value={progress} className="h-3" />
               <p className="text-xs text-gray-500 text-center">
-                ⏱️ Large documents may take 2-5 minutes to process
+                ⏱️ Large documents may take up to 20 minutes to process
               </p>
             </div>
           )}
