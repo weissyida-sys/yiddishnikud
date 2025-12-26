@@ -35,68 +35,55 @@ Deno.serve(async (req) => {
         const zip = new PizZip(bytes);
         let docXml = zip.file("word/document.xml").asText();
 
-        // Extract paragraphs with Hebrew text
-        const paragraphs = extractParagraphs(docXml);
+        // Extract all text runs with Hebrew text
+        const runs = extractTextRuns(docXml);
+        console.log(`Found ${runs.length} Hebrew text runs to process`);
 
-        // Process each paragraph with OpenAI
-        console.log(`Processing ${paragraphs.length} paragraphs...`);
-        
-        for (let i = 0; i < paragraphs.length; i++) {
-            const para = paragraphs[i];
-            console.log(`Processing paragraph ${i + 1}/${paragraphs.length}, length: ${para.text.length} chars`);
+        // Process each run individually with OpenAI
+        for (let i = 0; i < runs.length; i++) {
+            const run = runs[i];
+            console.log(`Processing run ${i + 1}/${runs.length}, text: "${run.text.substring(0, 100)}"`);
             
             try {
-                console.log(`Sending to OpenAI - text length: ${para.text.length}`);
-                console.log(`Sample text: ${para.text.substring(0, 200)}`);
-                
                 const response = await openai.chat.completions.create({
                     model: FINE_TUNED_MODEL,
                     messages: [
-                        { role: "user", content: para.text }
+                        { role: "user", content: run.text }
                     ],
-                    temperature: 0.1,
+                    temperature: 0,
                     max_tokens: 16000,
-                    timeout: 120000, // 2 minutes per paragraph
+                    timeout: 120000,
                 });
 
                 const nikudText = response.choices[0].message.content.trim();
                 
-                console.log(`Original text (first 100 chars): ${para.text.substring(0, 100)}`);
-                console.log(`Nikud text (first 100 chars): ${nikudText.substring(0, 100)}`);
-                console.log(`Finish reason: ${response.choices[0].finish_reason}`);
+                // Count nikud marks
+                const nikudMarks = (nikudText.match(/[\u05B0-\u05BC\u05C1-\u05C2]/g) || []).length;
+                console.log(`OpenAI response (first 200 chars): "${nikudText.substring(0, 200)}"`);
+                console.log(`Nikud marks found: ${nikudMarks}`);
                 
-                // Check if response might be incomplete
-                if (response.choices[0].finish_reason !== 'stop') {
-                    console.warn(`Warning: Paragraph ${para.id} may be incomplete. Finish reason: ${response.choices[0].finish_reason}`);
+                if (nikudMarks === 0) {
+                    console.warn(`Warning: No nikud marks in response for run ${i + 1}`);
                 }
                 
-                // Verify nikud was actually added
-                const hasNikud = /[\u0591-\u05C7]/.test(nikudText);
-                if (!hasNikud) {
-                    console.warn(`Warning: No nikud marks detected in AI response for paragraph ${i + 1}`);
-                }
+                run.nikudText = nikudText;
+                console.log(`✓ Completed run ${i + 1}/${runs.length}`);
                 
-                para.nikudText = nikudText;
-                
-                console.log(`✓ Completed paragraph ${i + 1}/${paragraphs.length}`);
-                
-            } catch (paraError) {
-                console.error(`Error processing paragraph ${i + 1}:`, paraError.message);
-                // Keep original text if processing fails
-                para.nikudText = para.text;
+            } catch (error) {
+                console.error(`Error processing run ${i + 1}:`, error.message);
+                run.nikudText = run.text;
             }
         }
         
-        console.log('All paragraphs processed successfully');
+        console.log('All runs processed');
 
-        // Rebuild the document XML
-        const sortedParagraphs = [...paragraphs].sort((a, b) => b.startIndex - a.startIndex);
+        // Replace text in each run (from end to start to preserve indices)
+        const sortedRuns = [...runs].sort((a, b) => b.startIndex - a.startIndex);
         
-        for (const para of sortedParagraphs) {
-            const updatedParaXml = replaceTextInParagraph(para.fullXml, para.nikudText);
-            docXml = docXml.substring(0, para.startIndex) + 
-                     updatedParaXml + 
-                     docXml.substring(para.startIndex + para.fullXml.length);
+        for (const run of sortedRuns) {
+            docXml = docXml.substring(0, run.startIndex) + 
+                     run.nikudText + 
+                     docXml.substring(run.startIndex + run.text.length);
         }
 
         // Update the zip with new content
@@ -132,83 +119,23 @@ Deno.serve(async (req) => {
     }
 });
 
-function extractParagraphs(xml) {
-    const paragraphs = [];
-    const paragraphRegex = /<w:p[^>]*>(.*?)<\/w:p>/gs;
-    let pMatch;
-    let pIndex = 0;
-    
-    while ((pMatch = paragraphRegex.exec(xml)) !== null) {
-        const paragraphXml = pMatch[1];
-        const textRegex = /<w:t[^>]*>([^<]*)<\/w:t>/g;
-        const textRuns = [];
-        let textContent = '';
-        let tMatch;
-        
-        while ((tMatch = textRegex.exec(paragraphXml)) !== null) {
-            textRuns.push({
-                text: tMatch[1],
-                startIndex: tMatch.index,
-                fullMatch: tMatch[0]
-            });
-            textContent += tMatch[1];
-        }
-        
-        if (/[\u0590-\u05FF]/.test(textContent)) {
-            paragraphs.push({
-                id: pIndex,
-                text: textContent,
-                textRuns: textRuns,
-                fullXml: pMatch[0],
-                startIndex: pMatch.index
-            });
-            pIndex++;
-        }
-    }
-    
-    return paragraphs;
-}
-
-function replaceTextInParagraph(paragraphXml, nikudText) {
-    // Find the first Hebrew text run and replace it with nikud text
-    // Remove all other Hebrew text runs
-    const textRegex = /(<w:t[^>]*>)([^<]*)(<\/w:t>)/g;
-    let result = paragraphXml;
-    let replaced = false;
-    
-    // Collect all matches first
-    const matches = [];
+function extractTextRuns(xml) {
+    const runs = [];
+    const textRegex = /<w:t[^>]*>([^<]+)<\/w:t>/g;
     let match;
-    while ((match = textRegex.exec(paragraphXml)) !== null) {
-        matches.push({
-            fullMatch: match[0],
-            openTag: match[1],
-            text: match[2],
-            closeTag: match[3],
-            index: match.index
-        });
-    }
     
-    // Process from end to start to preserve indices
-    for (let i = matches.length - 1; i >= 0; i--) {
-        const m = matches[i];
-        if (/[\u0590-\u05FF]/.test(m.text)) {
-            if (!replaced) {
-                // First Hebrew run - replace with nikud text
-                // Ensure xml:space="preserve" is present for proper text handling
-                let openTag = m.openTag;
-                if (!openTag.includes('xml:space')) {
-                    openTag = '<w:t xml:space="preserve">';
-                }
-                const newRun = openTag + nikudText + m.closeTag;
-                result = result.substring(0, m.index) + newRun + result.substring(m.index + m.fullMatch.length);
-                replaced = true;
-            } else {
-                // Remove other Hebrew runs
-                result = result.substring(0, m.index) + result.substring(m.index + m.fullMatch.length);
-            }
+    while ((match = textRegex.exec(xml)) !== null) {
+        const text = match[1];
+        
+        // Only process runs with Hebrew/Yiddish characters
+        if (/[\u0590-\u05FF]/.test(text)) {
+            runs.push({
+                text: text,
+                startIndex: match.index + match[0].indexOf(text),
+                fullMatch: match[0]
+            });
         }
     }
     
-    return result;
+    return runs;
 }
