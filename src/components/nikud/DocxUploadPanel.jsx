@@ -12,6 +12,7 @@ export default function DocxUploadPanel() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [processedFileBlob, setProcessedFileBlob] = useState(null);
+  const [statusMessage, setStatusMessage] = useState('');
   const fileInputRef = useRef(null);
 
   const handleFileSelect = (e) => {
@@ -36,6 +37,7 @@ export default function DocxUploadPanel() {
     toast.info("Processing document...");
     setIsProcessing(true);
     setProgress(10);
+    setStatusMessage('Reading file...');
 
     try {
       // Convert file to base64
@@ -46,15 +48,29 @@ export default function DocxUploadPanel() {
         reader.readAsDataURL(selectedFile);
       });
 
-      setProgress(30);
+      setProgress(20);
+      setStatusMessage('Uploading document...');
 
       console.log('Calling processEntireDocx...');
-      const result = await base44.functions.invoke('processEntireDocx', {
-        fileBase64: fileBase64,
-        fileName: selectedFile.name
-      });
+      
+      // Set a longer timeout for large documents
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Processing timeout - document may be too large. Try splitting it into smaller sections.')), 300000) // 5 minutes
+      );
+
+      setProgress(30);
+      setStatusMessage('Processing paragraphs with AI (this may take a few minutes)...');
+
+      const result = await Promise.race([
+        base44.functions.invoke('processEntireDocx', {
+          fileBase64: fileBase64,
+          fileName: selectedFile.name
+        }),
+        timeoutPromise
+      ]);
 
       setProgress(80);
+      setStatusMessage('Finalizing document...');
 
       console.log('Processing complete:', result.data);
 
@@ -74,8 +90,9 @@ export default function DocxUploadPanel() {
 
     } catch (error) {
       console.error('Processing error:', error);
-      toast.error("Processing failed: " + error.message, { duration: 10000 });
+      toast.error("Processing failed: " + error.message, { duration: 15000 });
       setProgress(0);
+      setStatusMessage('');
 
     } finally {
       setIsProcessing(false);
@@ -171,10 +188,13 @@ export default function DocxUploadPanel() {
           {isProcessing && (
             <div className="space-y-3">
               <div className="flex items-center justify-between text-sm">
-                <span className="text-gray-600">Processing...</span>
+                <span className="text-gray-600">{statusMessage || 'Processing...'}</span>
                 <span className="font-medium text-indigo-600">{progress}%</span>
               </div>
               <Progress value={progress} className="h-3" />
+              <p className="text-xs text-gray-500 text-center">
+                ⏱️ Large documents may take 2-5 minutes to process
+              </p>
             </div>
           )}
 
