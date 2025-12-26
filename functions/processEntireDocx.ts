@@ -46,13 +46,12 @@ Deno.serve(async (req) => {
             console.log(`Processing paragraph ${i + 1}/${paragraphs.length}, length: ${para.text.length} chars`);
             
             try {
+                console.log(`Sending to OpenAI - text length: ${para.text.length}`);
+                console.log(`Sample text: ${para.text.substring(0, 200)}`);
+                
                 const response = await openai.chat.completions.create({
                     model: FINE_TUNED_MODEL,
                     messages: [
-                        {
-                            role: "system",
-                            content: "You are a Yiddish nikud engine. Add vowel points (nikud) to the given Yiddish text. Return ONLY the text with nikud added, nothing else. IMPORTANT: Return the COMPLETE text with nikud - do not cut off in the middle."
-                        },
                         { role: "user", content: para.text }
                     ],
                     temperature: 0.1,
