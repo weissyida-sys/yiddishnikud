@@ -62,9 +62,19 @@ Deno.serve(async (req) => {
 
                 const nikudText = response.choices[0].message.content.trim();
                 
+                console.log(`Original text (first 100 chars): ${para.text.substring(0, 100)}`);
+                console.log(`Nikud text (first 100 chars): ${nikudText.substring(0, 100)}`);
+                console.log(`Finish reason: ${response.choices[0].finish_reason}`);
+                
                 // Check if response might be incomplete
                 if (response.choices[0].finish_reason !== 'stop') {
                     console.warn(`Warning: Paragraph ${para.id} may be incomplete. Finish reason: ${response.choices[0].finish_reason}`);
+                }
+                
+                // Verify nikud was actually added
+                const hasNikud = /[\u0591-\u05C7]/.test(nikudText);
+                if (!hasNikud) {
+                    console.warn(`Warning: No nikud marks detected in AI response for paragraph ${i + 1}`);
                 }
                 
                 para.nikudText = nikudText;
