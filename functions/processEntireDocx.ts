@@ -67,15 +67,14 @@ Deno.serve(async (req) => {
                     console.warn(`Warning: Paragraph ${para.id} may be incomplete. Finish reason: ${response.choices[0].finish_reason}`);
                 }
                 
-                // Map nikud text back to original text runs
-                para.nikudText = distributeNikudToRuns(para.textRuns, nikudText);
+                para.nikudText = nikudText;
                 
                 console.log(`✓ Completed paragraph ${i + 1}/${paragraphs.length}`);
                 
             } catch (paraError) {
                 console.error(`Error processing paragraph ${i + 1}:`, paraError.message);
                 // Keep original text if processing fails
-                para.nikudText = para.textRuns.map(run => run.text);
+                para.nikudText = para.text;
             }
         }
         
@@ -85,7 +84,7 @@ Deno.serve(async (req) => {
         const sortedParagraphs = [...paragraphs].sort((a, b) => b.startIndex - a.startIndex);
         
         for (const para of sortedParagraphs) {
-            const updatedParaXml = replaceTextInParagraphRuns(para.fullXml, para.nikudText);
+            const updatedParaXml = replaceTextInParagraph(para.fullXml, para.nikudText);
             docXml = docXml.substring(0, para.startIndex) + 
                      updatedParaXml + 
                      docXml.substring(para.startIndex + para.fullXml.length);
@@ -161,42 +160,14 @@ function extractParagraphs(xml) {
     return paragraphs;
 }
 
-function distributeNikudToRuns(textRuns, nikudText) {
-    // Map nikud text back to original runs by matching characters
-    const nikudChars = Array.from(nikudText);
-    const result = [];
-    let nikudIndex = 0;
-    
-    for (const run of textRuns) {
-        const runChars = Array.from(run.text);
-        let runNikud = '';
-        
-        for (let i = 0; i < runChars.length && nikudIndex < nikudChars.length; i++) {
-            // Take characters from nikud until we match the base character count
-            runNikud += nikudChars[nikudIndex];
-            nikudIndex++;
-            
-            // Check if next chars are nikud marks (U+0591-U+05C7), if so, include them
-            while (nikudIndex < nikudChars.length && 
-                   nikudChars[nikudIndex].charCodeAt(0) >= 0x0591 && 
-                   nikudChars[nikudIndex].charCodeAt(0) <= 0x05C7) {
-                runNikud += nikudChars[nikudIndex];
-                nikudIndex++;
-            }
-        }
-        
-        result.push(runNikud);
-    }
-    
-    return result;
-}
-
-function replaceTextInParagraphRuns(paragraphXml, nikudTexts) {
+function replaceTextInParagraph(paragraphXml, nikudText) {
+    // Find the first Hebrew text run and replace it with nikud text
+    // Remove all other Hebrew text runs
     const textRegex = /(<w:t[^>]*>)([^<]*)(<\/w:t>)/g;
     let result = paragraphXml;
-    let textRunIndex = 0;
+    let replaced = false;
     
-    // Replace from end to start to preserve indices
+    // Collect all matches first
     const matches = [];
     let match;
     while ((match = textRegex.exec(paragraphXml)) !== null) {
@@ -209,13 +180,19 @@ function replaceTextInParagraphRuns(paragraphXml, nikudTexts) {
         });
     }
     
+    // Process from end to start to preserve indices
     for (let i = matches.length - 1; i >= 0; i--) {
         const m = matches[i];
         if (/[\u0590-\u05FF]/.test(m.text)) {
-            const newText = nikudTexts[textRunIndex] || m.text;
-            const newRun = m.openTag + newText + m.closeTag;
-            result = result.substring(0, m.index) + newRun + result.substring(m.index + m.fullMatch.length);
-            textRunIndex++;
+            if (!replaced) {
+                // First Hebrew run - replace with nikud text
+                const newRun = m.openTag + nikudText + m.closeTag;
+                result = result.substring(0, m.index) + newRun + result.substring(m.index + m.fullMatch.length);
+                replaced = true;
+            } else {
+                // Remove other Hebrew runs
+                result = result.substring(0, m.index) + result.substring(m.index + m.fullMatch.length);
+            }
         }
     }
     
