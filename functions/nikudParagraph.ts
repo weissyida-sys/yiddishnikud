@@ -1,54 +1,46 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
-import OpenAI from 'npm:openai@4.73.1';
+import { createClientFromRequest } from "npm:@base44/sdk@0.8.4";
+import OpenAI from "npm:openai@4.73.1";
 
-const openai = new OpenAI({
-    apiKey: Deno.env.get("OPENAI_API_KEY"),
-});
-
+const openai = new OpenAI({ apiKey: Deno.env.get("OPENAI_API_KEY") });
 const FINE_TUNED_MODEL = "ft:gpt-4o-mini-2024-07-18:personal::CkdDGC5F";
 
 Deno.serve(async (req) => {
-    try {
-        const base44 = createClientFromRequest(req);
-        const user = await base44.auth.me();
+  try {
+    const base44 = createClientFromRequest(req);
+    const user = await base44.auth.me();
+    if (!user) return Response.json({ success: false, error: "Unauthorized" }, { status: 401 });
 
-        if (!user) {
-            return Response.json({ error: 'Unauthorized' }, { status: 401 });
-        }
+    const body = await req.json();
+    const text = body && body.text;
 
-        const body = await req.json();
-        const { text } = body;
-
-        if (!text) {
-            return Response.json({ error: 'Text is required' }, { status: 400 });
-        }
-
-        // Process single paragraph with OpenAI
-        const response = await openai.chat.completions.create({
-            model: FINE_TUNED_MODEL,
-            messages: [
-                {
-                    role: "system",
-                    content: "You are a Yiddish nikud engine. Add vowel points (nikud) to the given Yiddish text. Return ONLY the text with nikud added, nothing else. Do not explain, translate, or add any other text."
-                },
-                { role: "user", content: text }
-            ],
-            temperature: 0.1,
-            max_tokens: 4096,
-        });
-
-        const nikudText = response.choices[0].message.content;
-
-        return Response.json({
-            success: true,
-            nikudText: nikudText
-        });
-
-    } catch (error) {
-        console.error('Error in nikudParagraph:', error);
-        return Response.json({ 
-            error: error.message,
-            success: false 
-        }, { status: 500 });
+    if (typeof text !== "string") {
+      return Response.json({ success: false, error: "text is required" }, { status: 400 });
     }
+
+    // If no Hebrew, return as-is
+    if (!/[\u0590-\u05FF]/.test(text)) {
+      return Response.json({ success: true, nikudText: text });
+    }
+
+    const resp = await openai.chat.completions.create({
+      model: FINE_TUNED_MODEL,
+      temperature: 0,
+      messages: [
+        {
+          role: "system",
+          content:
+            "You are a strict Yiddish nikud engine. Return the SAME text, only adding nikud. Do not translate, explain, or change punctuation/spacing.",
+        },
+        { role: "user", content: text },
+      ],
+      max_tokens: 2048,
+    });
+
+    const out = (resp.choices?.[0]?.message?.content ?? text);
+
+    return Response.json({ success: true, nikudText: out });
+  } catch (error) {
+    console.error("nikudParagraph error:", error);
+    return Response.json({ success: false, error: error.message || "Unknown error" }, { status: 500 });
+  }
 });
