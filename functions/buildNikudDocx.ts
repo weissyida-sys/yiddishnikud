@@ -1,91 +1,105 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
-import PizZip from 'npm:pizzip@3.1.7';
+import { createClientFromRequest } from "npm:@base44/sdk@0.8.4";
+import PizZip from "npm:pizzip@3.1.7";
+
+function xmlEscape(s) {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
+}
+
+function uint8ToBase64(u8) {
+  let binary = "";
+  const chunk = 0x8000;
+  for (let i = 0; i < u8.length; i += chunk) {
+    binary += String.fromCharCode(...u8.subarray(i, i + chunk));
+  }
+  return btoa(binary);
+}
 
 Deno.serve(async (req) => {
-    try {
-        const base44 = createClientFromRequest(req);
-        const user = await base44.auth.me();
+  try {
+    const base44 = createClientFromRequest(req);
+    const user = await base44.auth.me();
+    if (!user) return Response.json({ success: false, error: "Unauthorized" }, { status: 401 });
 
-        if (!user) {
-            return Response.json({ error: 'Unauthorized' }, { status: 401 });
-        }
+    const body = await req.json();
+    const fileUri = body && body.fileUri;
+    const fileName = body && body.fileName;
+    const paragraphs = body && body.paragraphs;
 
-        const body = await req.json();
-        const { fileUri, paragraphs, fileName } = body;
-
-        if (!fileUri || !paragraphs) {
-            return Response.json({ error: 'Missing required data' }, { status: 400 });
-        }
-
-        // Download the original DOCX from storage
-        const signedUrlResult = await base44.asServiceRole.integrations.Core.CreateFileSignedUrl({
-            file_uri: fileUri,
-            expires_in: 300
-        });
-        
-        const docResponse = await fetch(signedUrlResult.signed_url);
-        const arrayBuffer = await docResponse.arrayBuffer();
-        const zip = new PizZip(arrayBuffer);
-        
-        // Extract document.xml
-        let docXml = zip.file("word/document.xml").asText();
-        
-        // Replace text in each paragraph while preserving formatting
-        // Process in reverse order to maintain string indices
-        const sortedParagraphs = [...paragraphs].sort((a, b) => b.startIndex - a.startIndex);
-        
-        for (const para of sortedParagraphs) {
-            // Replace the paragraph's text content while keeping XML structure
-            const updatedParaXml = replaceTextInParagraph(para.fullXml, para.nikudText);
-            
-            // Replace in the full XML
-            docXml = docXml.substring(0, para.startIndex) + 
-                     updatedParaXml + 
-                     docXml.substring(para.startIndex + para.fullXml.length);
-        }
-        
-        // Update the zip with new content
-        zip.file("word/document.xml", docXml);
-        
-        // Generate new DOCX
-        const newDocx = zip.generate({
-            type: "nodebuffer",
-            mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-        });
-        
-        return new Response(newDocx, {
-            status: 200,
-            headers: {
-                'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-                'Content-Disposition': `attachment; filename="${fileName.replace('.docx', '')}.nikud.docx"`
-            }
-        });
-
-    } catch (error) {
-        console.error('Error in buildNikudDocx:', error);
-        return Response.json({ 
-            error: error.message,
-            success: false 
-        }, { status: 500 });
+    if (!fileUri || !fileName || !Array.isArray(paragraphs)) {
+      return Response.json({ success: false, error: "fileUri, fileName, paragraphs are required" }, { status: 400 });
     }
-});
 
-function replaceTextInParagraph(paragraphXml, newText) {
-    // Find all text runs and replace content while keeping formatting
-    const textRegex = /(<w:t[^>]*>)([^<]*)(<\/w:t>)/g;
-    let hasReplaced = false;
-    
-    const result = paragraphXml.replace(textRegex, (match, openTag, oldText, closeTag) => {
-        if (!hasReplaced && /[\u0590-\u05FF]/.test(oldText)) {
-            // Replace first text run with new text
-            hasReplaced = true;
-            return openTag + newText + closeTag;
-        } else if (hasReplaced && /[\u0590-\u05FF]/.test(oldText)) {
-            // Remove subsequent Hebrew text runs (already combined in first)
-            return '';
-        }
-        return match;
+    const signed = await base44.asServiceRole.integrations.Core.CreateFileSignedUrl({
+      file_uri: fileUri,
+      expires_in: 600,
     });
-    
-    return result;
-}
+
+    const res = await fetch(signed.signed_url);
+    if (!res.ok) throw new Error(`Failed to download original docx: ${res.status}`);
+
+    const buf = await res.arrayBuffer();
+    const zip = new PizZip(buf);
+
+    const docPath = "word/document.xml";
+    const docFile = zip.file(docPath);
+    if (!docFile) return Response.json({ success: false, error: "word/document.xml not found" }, { status: 400 });
+
+    let docXml = docFile.asText();
+
+    // Replace paragraphs from end to start using stored startIndex/fullXml
+    const sorted = [...paragraphs].sort((a, b) => b.startIndex - a.startIndex);
+
+    for (const p of sorted) {
+      const fullXml = p.fullXml;
+      const runs = p.runs || [];
+
+      // Replace each <w:t ...>...</w:t> in this paragraph in order
+      let runIdx = 0;
+      const updated = fullXml.replace(/<w:t\b([^>]*)>([\s\S]*?)<\/w:t>/g, (m, attrs, inner) => {
+        if (runIdx >= runs.length) return m;
+        const r = runs[runIdx];
+        runIdx++;
+
+        // Use original attrs from XML to preserve xml:space, etc.
+        // But ensure preserve if leading/trailing whitespace exists after nikud
+        let newAttrs = attrs || "";
+        const outText = (r && typeof r.nikudText === "string") ? r.nikudText : (r?.text ?? "");
+        const escaped = xmlEscape(outText);
+
+        const needsPreserve = /^\s/.test(outText) || /\s$/.test(outText);
+        if (needsPreserve && !/xml:space\s*=\s*["']preserve["']/.test(newAttrs)) {
+          newAttrs = `${newAttrs} xml:space="preserve"`;
+        }
+
+        return `<w:t${newAttrs}>${escaped}</w:t>`;
+      });
+
+      // splice into full document XML using original indices
+      docXml =
+        docXml.substring(0, p.startIndex) +
+        updated +
+        docXml.substring(p.startIndex + fullXml.length);
+    }
+
+    zip.file(docPath, docXml);
+
+    const outU8 = zip.generate({
+      type: "uint8array",
+      mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    });
+
+    return Response.json({
+      success: true,
+      fileName: fileName.replace(/\.docx$/i, ".nikud.docx"),
+      fileBase64: uint8ToBase64(outU8),
+    });
+  } catch (error) {
+    console.error("buildNikudDocx error:", error);
+    return Response.json({ success: false, error: error.message || "Unknown error" }, { status: 500 });
+  }
+});
