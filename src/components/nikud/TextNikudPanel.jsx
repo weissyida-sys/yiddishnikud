@@ -1,37 +1,117 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, Copy, CheckCircle2, Sparkles, Download } from "lucide-react";
 import { toast } from "sonner";
 import { base44 } from "@/api/base44Client";
+import ReactQuill from "react-quill";
+import "react-quill/dist/quill.snow.css";
 
 export default function TextNikudPanel() {
-  const [inputText, setInputText] = useState("");
-  const [outputText, setOutputText] = useState("");
+  const [inputHtml, setInputHtml] = useState("");
+  const [outputHtml, setOutputHtml] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
   const [coverage, setCoverage] = useState(null);
+  const quillRef = useRef(null);
+
+  // Convert HTML to plain text, preserving line breaks
+  const htmlToPlainText = (html) => {
+    const temp = document.createElement("div");
+    temp.innerHTML = html;
+    
+    // Replace block elements with newlines
+    temp.querySelectorAll("p, div, br").forEach(el => {
+      if (el.tagName === "BR") {
+        el.replaceWith("\n");
+      } else {
+        const text = el.textContent;
+        el.replaceWith(text + "\n");
+      }
+    });
+    
+    temp.querySelectorAll("li").forEach(li => {
+      const text = li.textContent;
+      li.replaceWith("• " + text + "\n");
+    });
+    
+    return temp.textContent || "";
+  };
+
+  // Replace text in HTML while preserving all structure
+  const replaceTextInHtml = (html, nikudText) => {
+    const temp = document.createElement("div");
+    temp.innerHTML = html;
+    
+    // Get all text nodes
+    const walker = document.createTreeWalker(
+      temp,
+      NodeFilter.SHOW_TEXT,
+      null,
+      false
+    );
+    
+    const textNodes = [];
+    let node;
+    while ((node = walker.nextNode())) {
+      const trimmed = node.textContent.trim();
+      if (trimmed && /[\u0590-\u05FF]/.test(trimmed)) {
+        textNodes.push(node);
+      }
+    }
+    
+    // Build plain text to match what was sent to OpenAI
+    let plainText = "";
+    for (const node of textNodes) {
+      plainText += node.textContent;
+    }
+    
+    // Replace text nodes with nikud version
+    let nikudIndex = 0;
+    for (const node of textNodes) {
+      const originalText = node.textContent;
+      let newText = "";
+      
+      for (let i = 0; i < originalText.length; i++) {
+        if (nikudIndex < nikudText.length) {
+          newText += nikudText[nikudIndex];
+          nikudIndex++;
+        } else {
+          newText += originalText[i];
+        }
+      }
+      
+      node.textContent = newText;
+    }
+    
+    return temp.innerHTML;
+  };
 
   const processNikud = async () => {
-    if (!inputText.trim()) {
+    const plainText = htmlToPlainText(inputHtml);
+    
+    if (!plainText.trim()) {
       toast.error("Please enter text");
       return;
     }
 
     setIsProcessing(true);
-    console.log('Starting nikud processing...', { inputText });
+    console.log('Starting nikud processing...', { plainText: plainText.substring(0, 100) });
     
     try {
       console.log('Calling processNikud function...');
       const result = await base44.functions.invoke('processNikud', {
-        text: inputText
+        text: plainText
       });
 
       console.log('Function result:', result);
 
       if (result.data.success) {
-        setOutputText(result.data.text);
+        const nikudText = result.data.text;
+        
+        // Re-insert nikud text into HTML structure
+        const resultHtml = replaceTextInHtml(inputHtml, nikudText);
+        setOutputHtml(resultHtml);
         
         // Calculate basic coverage from audit data if available
         if (result.data.audit && result.data.audit.length > 0) {
@@ -57,23 +137,36 @@ export default function TextNikudPanel() {
   };
 
   const copyToClipboard = () => {
-    if (outputText) {
-      navigator.clipboard.writeText(outputText);
-      toast.success("Copied to clipboard!");
+    if (!outputHtml) {
+      toast.error("No output to copy");
+      return;
     }
+    
+    // Try to copy as HTML first
+    const blob = new Blob([outputHtml], { type: "text/html" });
+    const clipboardItem = new ClipboardItem({ "text/html": blob });
+    
+    navigator.clipboard.write([clipboardItem])
+      .then(() => toast.success("Copied with formatting!"))
+      .catch(() => {
+        // Fallback to plain text
+        const plainText = htmlToPlainText(outputHtml);
+        navigator.clipboard.writeText(plainText);
+        toast.success("Copied as plain text!");
+      });
   };
 
   const downloadAsText = () => {
-    if (!outputText) {
+    if (!outputHtml) {
       toast.error("No text to download");
       return;
     }
 
-    const blob = new Blob([outputText], { type: 'text/plain;charset=utf-8' });
+    const blob = new Blob([outputHtml], { type: 'text/html;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = 'nikud_text.txt';
+    link.download = 'nikud_text.html';
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -83,8 +176,8 @@ export default function TextNikudPanel() {
   };
 
   const clearAll = () => {
-    setInputText("");
-    setOutputText("");
+    setInputHtml("");
+    setOutputHtml("");
     setCoverage(null);
   };
 
@@ -95,22 +188,37 @@ export default function TextNikudPanel() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-xl">
             <Sparkles className="w-5 h-5 text-indigo-600" />
-            Input Text
+            Input Text (Rich Format)
           </CardTitle>
+          <p className="text-sm text-gray-600 mt-2">
+            Paste formatted text - bold, italics, lists, and paragraphs will be preserved
+          </p>
         </CardHeader>
         <CardContent className="space-y-4">
-          <Textarea
-            value={inputText}
-            onChange={(e) => setInputText(e.target.value)}
-            placeholder="Enter Yiddish text without nikud here..."
-            className="min-h-[300px] text-lg font-serif border-2 border-indigo-200 focus:border-indigo-400"
-            dir="rtl"
-          />
+          <div className="border-2 border-indigo-200 rounded-lg overflow-hidden bg-white" style={{ minHeight: "300px" }}>
+            <ReactQuill
+              ref={quillRef}
+              value={inputHtml}
+              onChange={setInputHtml}
+              placeholder="Paste your Yiddish text here (formatting will be preserved)..."
+              theme="snow"
+              modules={{
+                toolbar: [
+                  [{ 'header': [1, 2, 3, false] }],
+                  ['bold', 'italic', 'underline'],
+                  [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                  [{ 'align': [] }],
+                  ['clean']
+                ]
+              }}
+              style={{ minHeight: "250px", direction: "rtl" }}
+            />
+          </div>
           
           <div className="flex gap-3">
             <Button
               onClick={processNikud}
-              disabled={isProcessing || !inputText.trim()}
+              disabled={isProcessing || !inputHtml.trim()}
               className="flex-1 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-semibold py-6 text-lg"
             >
               {isProcessing ? (
@@ -133,14 +241,6 @@ export default function TextNikudPanel() {
               Clear
             </Button>
           </div>
-
-          {inputText && (
-            <div className="text-sm text-gray-600">
-              <Badge variant="secondary">
-                {inputText.length} characters
-              </Badge>
-            </div>
-          )}
         </CardContent>
       </Card>
 
@@ -150,9 +250,9 @@ export default function TextNikudPanel() {
           <CardTitle className="flex items-center justify-between text-xl">
             <span className="flex items-center gap-2">
               <CheckCircle2 className="w-5 h-5 text-purple-600" />
-              Result
+              Result (Formatting Preserved)
             </span>
-            {outputText && (
+            {outputHtml && (
               <div className="flex gap-2">
                 <Button
                   onClick={copyToClipboard}
@@ -177,13 +277,13 @@ export default function TextNikudPanel() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="min-h-[300px] p-4 rounded-lg border-2 border-purple-200 bg-purple-50/50 text-lg font-serif whitespace-pre-wrap" dir="rtl">
-            {outputText || (
-              <span className="text-gray-400">
-                Text with nikud will appear here...
-              </span>
-            )}
-          </div>
+          <div 
+            className="min-h-[300px] p-4 rounded-lg border-2 border-purple-200 bg-purple-50/50 text-lg font-serif overflow-auto" 
+            dir="rtl"
+            dangerouslySetInnerHTML={{ 
+              __html: outputHtml || '<span style="color: #9ca3af;">Text with nikud will appear here...</span>' 
+            }}
+          />
 
           {coverage && (
             <Card className="bg-gradient-to-r from-purple-50 to-indigo-50 border-purple-200">
