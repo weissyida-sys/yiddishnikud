@@ -5,15 +5,26 @@ import { Badge } from "@/components/ui/badge";
 import { Loader2, Copy, CheckCircle2, Sparkles, Download } from "lucide-react";
 import { toast } from "sonner";
 import { base44 } from "@/api/base44Client";
-import ReactQuill from "react-quill";
-import "react-quill/dist/quill.snow.css";
 
 export default function TextNikudPanel() {
   const [inputHtml, setInputHtml] = useState("");
   const [outputHtml, setOutputHtml] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
   const [coverage, setCoverage] = useState(null);
-  const quillRef = useRef(null);
+  const inputRef = useRef(null);
+
+  const handlePaste = (e) => {
+    e.preventDefault();
+    const html = e.clipboardData.getData('text/html') || e.clipboardData.getData('text/plain');
+    setInputHtml(html);
+    if (inputRef.current) {
+      inputRef.current.innerHTML = html;
+    }
+  };
+
+  const handleInput = (e) => {
+    setInputHtml(e.target.innerHTML);
+  };
 
   // Convert HTML to plain text, preserving line breaks
   const htmlToPlainText = (html) => {
@@ -195,25 +206,15 @@ export default function TextNikudPanel() {
           </p>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="border-2 border-indigo-200 rounded-lg overflow-hidden bg-white" style={{ minHeight: "300px" }}>
-            <ReactQuill
-              ref={quillRef}
-              value={inputHtml}
-              onChange={setInputHtml}
-              placeholder="Paste your Yiddish text here (formatting will be preserved)..."
-              theme="snow"
-              modules={{
-                toolbar: [
-                  [{ 'header': [1, 2, 3, false] }],
-                  ['bold', 'italic', 'underline'],
-                  [{ 'list': 'ordered'}, { 'list': 'bullet' }],
-                  [{ 'align': [] }],
-                  ['clean']
-                ]
-              }}
-              style={{ minHeight: "250px", direction: "rtl" }}
-            />
-          </div>
+          <div 
+            ref={inputRef}
+            contentEditable
+            onPaste={handlePaste}
+            onInput={handleInput}
+            className="border-2 border-indigo-200 rounded-lg p-4 bg-white min-h-[300px] focus:outline-none focus:border-indigo-400 text-lg"
+            style={{ direction: "rtl" }}
+            dangerouslySetInnerHTML={inputHtml ? undefined : { __html: '<span style="color: #9ca3af;">Paste your Yiddish text here (formatting will be preserved)...</span>' }}
+          />
           
           <div className="flex gap-3">
             <Button
