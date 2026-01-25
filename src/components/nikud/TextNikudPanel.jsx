@@ -26,119 +26,72 @@ export default function TextNikudPanel() {
     setInputHtml(e.target.innerHTML);
   };
 
-  // Convert HTML to plain text, preserving line breaks
-  const htmlToPlainText = (html) => {
-    const temp = document.createElement("div");
-    temp.innerHTML = html;
-    
-    // Replace block elements with newlines
-    temp.querySelectorAll("p, div, br").forEach(el => {
-      if (el.tagName === "BR") {
-        el.replaceWith("\n");
-      } else {
-        const text = el.textContent;
-        el.replaceWith(text + "\n");
-      }
-    });
-    
-    temp.querySelectorAll("li").forEach(li => {
-      const text = li.textContent;
-      li.replaceWith("• " + text + "\n");
-    });
-    
-    return temp.textContent || "";
-  };
-
-  // Replace text in HTML while preserving all structure
-  const replaceTextInHtml = (html, nikudText) => {
-    const temp = document.createElement("div");
-    temp.innerHTML = html;
-    
-    // Get all text nodes
-    const walker = document.createTreeWalker(
-      temp,
-      NodeFilter.SHOW_TEXT,
-      null,
-      false
-    );
-    
-    const textNodes = [];
-    let node;
-    while ((node = walker.nextNode())) {
-      const trimmed = node.textContent.trim();
-      if (trimmed && /[\u0590-\u05FF]/.test(trimmed)) {
-        textNodes.push(node);
-      }
-    }
-    
-    // Build plain text to match what was sent to OpenAI
-    let plainText = "";
-    for (const node of textNodes) {
-      plainText += node.textContent;
-    }
-    
-    // Replace text nodes with nikud version
-    let nikudIndex = 0;
-    for (const node of textNodes) {
-      const originalText = node.textContent;
-      let newText = "";
-      
-      for (let i = 0; i < originalText.length; i++) {
-        if (nikudIndex < nikudText.length) {
-          newText += nikudText[nikudIndex];
-          nikudIndex++;
-        } else {
-          newText += originalText[i];
-        }
-      }
-      
-      node.textContent = newText;
-    }
-    
-    return temp.innerHTML;
-  };
-
   const processNikud = async () => {
-    const plainText = htmlToPlainText(inputHtml);
-    
-    if (!plainText.trim()) {
+    if (!inputHtml.trim()) {
       toast.error("Please enter text");
       return;
     }
 
     setIsProcessing(true);
-    console.log('Starting nikud processing...', { plainText: plainText.substring(0, 100) });
     
     try {
-      console.log('Calling processNikud function...');
-      const result = await base44.functions.invoke('processNikud', {
-        text: plainText
-      });
-
-      console.log('Function result:', result);
-
-      if (result.data.success) {
-        const nikudText = result.data.text;
-        
-        // Re-insert nikud text into HTML structure
-        const resultHtml = replaceTextInHtml(inputHtml, nikudText);
-        setOutputHtml(resultHtml);
-        
-        // Calculate basic coverage from audit data if available
-        if (result.data.audit && result.data.audit.length > 0) {
-          const total = result.data.audit.length;
-          const withNikud = result.data.audit.filter(a => a.chosen !== a.orig).length;
-          setCoverage({ 
-            percent: ((withNikud / total) * 100).toFixed(1), 
-            total, 
-            withNikud 
-          });
+      const temp = document.createElement("div");
+      temp.innerHTML = inputHtml;
+      
+      // Walk all text nodes
+      const walker = document.createTreeWalker(
+        temp,
+        NodeFilter.SHOW_TEXT,
+        null,
+        false
+      );
+      
+      const hebrewTextNodes = [];
+      let node;
+      while ((node = walker.nextNode())) {
+        if (/[\u0590-\u05FF]/.test(node.nodeValue)) {
+          hebrewTextNodes.push(node);
         }
-        
-        toast.success("Nikud added successfully!");
-      } else {
-        throw new Error(result.data.error || "Processing failed");
       }
+
+      if (hebrewTextNodes.length === 0) {
+        toast.error("No Hebrew text found");
+        setIsProcessing(false);
+        return;
+      }
+
+      let totalWords = 0;
+      let wordsWithNikud = 0;
+
+      // Process each Hebrew text node
+      for (const textNode of hebrewTextNodes) {
+        const originalText = textNode.nodeValue;
+        
+        const result = await base44.functions.invoke('processNikud', {
+          text: originalText
+        });
+
+        if (result.data.success) {
+          textNode.nodeValue = result.data.text;
+          
+          if (result.data.audit) {
+            totalWords += result.data.audit.length;
+            wordsWithNikud += result.data.audit.filter(a => a.chosen !== a.orig).length;
+          }
+        }
+      }
+      
+      setOutputHtml(temp.innerHTML);
+      
+      if (totalWords > 0) {
+        setCoverage({ 
+          percent: ((wordsWithNikud / totalWords) * 100).toFixed(1), 
+          total: totalWords, 
+          withNikud: wordsWithNikud 
+        });
+      }
+      
+      toast.success("Nikud added successfully!");
     } catch (error) {
       console.error('Error in processNikud:', error);
       toast.error("Error: " + error.message);
@@ -153,16 +106,15 @@ export default function TextNikudPanel() {
       return;
     }
     
-    // Try to copy as HTML first
     const blob = new Blob([outputHtml], { type: "text/html" });
     const clipboardItem = new ClipboardItem({ "text/html": blob });
     
     navigator.clipboard.write([clipboardItem])
       .then(() => toast.success("Copied with formatting!"))
       .catch(() => {
-        // Fallback to plain text
-        const plainText = htmlToPlainText(outputHtml);
-        navigator.clipboard.writeText(plainText);
+        const temp = document.createElement("div");
+        temp.innerHTML = outputHtml;
+        navigator.clipboard.writeText(temp.textContent);
         toast.success("Copied as plain text!");
       });
   };
@@ -190,6 +142,9 @@ export default function TextNikudPanel() {
     setInputHtml("");
     setOutputHtml("");
     setCoverage(null);
+    if (inputRef.current) {
+      inputRef.current.innerHTML = "";
+    }
   };
 
   return (
@@ -281,6 +236,7 @@ export default function TextNikudPanel() {
           <div 
             className="min-h-[300px] p-4 rounded-lg border-2 border-purple-200 bg-purple-50/50 text-lg font-serif overflow-auto" 
             dir="rtl"
+            style={{ whiteSpace: "pre-wrap" }}
             dangerouslySetInnerHTML={{ 
               __html: outputHtml || '<span style="color: #9ca3af;">Text with nikud will appear here...</span>' 
             }}
