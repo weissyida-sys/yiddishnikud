@@ -15,7 +15,20 @@ export default function TextNikudPanel() {
 
   const handlePaste = (e) => {
     e.preventDefault();
-    const html = e.clipboardData.getData('text/html') || e.clipboardData.getData('text/plain');
+    let html = e.clipboardData.getData('text/html');
+    
+    if (!html) {
+      // Plain text only - escape HTML and convert newlines to <br>
+      const plainText = e.clipboardData.getData('text/plain');
+      html = plainText
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;')
+        .replace(/\n/g, '<br>');
+    }
+    
     setInputHtml(html);
     if (inputRef.current) {
       inputRef.current.innerHTML = html;
@@ -67,12 +80,21 @@ export default function TextNikudPanel() {
       for (const textNode of hebrewTextNodes) {
         const originalText = textNode.nodeValue;
         
+        // Preserve leading/trailing whitespace
+        const match = originalText.match(/^(\s*)([\s\S]*?)(\s*)$/);
+        const leadingSpace = match[1];
+        const middleText = match[2];
+        const trailingSpace = match[3];
+        
+        if (!middleText) continue;
+        
         const result = await base44.functions.invoke('processNikud', {
-          text: originalText
+          text: middleText
         });
 
         if (result.data.success) {
-          textNode.nodeValue = result.data.text;
+          // Re-attach original whitespace
+          textNode.nodeValue = leadingSpace + result.data.text + trailingSpace;
           
           if (result.data.audit) {
             totalWords += result.data.audit.length;
