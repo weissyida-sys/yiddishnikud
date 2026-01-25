@@ -93,8 +93,8 @@ export default function TextNikudPanel() {
         });
 
         if (result.data.success) {
-          // Re-attach original whitespace
-          textNode.nodeValue = leadingSpace + result.data.text + trailingSpace;
+          // Re-attach original whitespace, do NOT trim OpenAI output
+          textNode.nodeValue = leadingSpace + result.data.nikudText + trailingSpace;
           
           if (result.data.audit) {
             totalWords += result.data.audit.length;
