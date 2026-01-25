@@ -4,6 +4,11 @@ import OpenAI from "npm:openai@4.73.1";
 const openai = new OpenAI({ apiKey: Deno.env.get("OPENAI_API_KEY") });
 const FINE_TUNED_MODEL = "ft:gpt-4o-mini-2024-07-18:personal::CkdDGC5F";
 
+// Remove all nikud marks for comparison
+const stripNikud = (text) => {
+  return text.replace(/[\u05B0-\u05BC\u05C1-\u05C2]/g, '');
+};
+
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
@@ -29,7 +34,7 @@ Deno.serve(async (req) => {
         {
           role: "system",
           content:
-            "You are a strict Yiddish nikud engine. Return the SAME text, only adding nikud. Do not translate, explain, or change punctuation/spacing.",
+            "You are a strict Yiddish nikud engine. Return the SAME text, only adding nikud. If not 100% certain, leave the word unchanged; never guess. Do not translate, explain, or change punctuation/spacing.",
         },
         { role: "user", content: text },
       ],
@@ -37,6 +42,12 @@ Deno.serve(async (req) => {
     });
 
     const out = (resp.choices?.[0]?.message?.content ?? text);
+
+    // Post-processing guard: reject if base letters changed
+    if (stripNikud(out) !== stripNikud(text)) {
+      console.warn("OpenAI changed base letters, returning original text");
+      return Response.json({ success: true, nikudText: text });
+    }
 
     return Response.json({ success: true, nikudText: out });
   } catch (error) {
